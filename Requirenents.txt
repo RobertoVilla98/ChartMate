@@ -1,0 +1,5 @@
+# requirements.txt
+dash
+pandas
+plotly
+dash-bootstrap-components  # Molto utile per creare layout puliti rapidamente
