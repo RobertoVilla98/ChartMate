@@ -1,0 +1,8 @@
+_Paper/
+dist/
+docs/
+projects.json
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
