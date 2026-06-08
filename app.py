@@ -1,50 +1,51 @@
-# app.py
 import dash
-from dash import dcc, html, Input, Output
+from dash import html, dcc, Input, Output, State
 import dash_bootstrap_components as dbc
+#import pywebview
+import threading
+import sys
+import os
+import webbrowser
 
-# Importa layout e registrazioni dei callback
-from layouts import data_loader, plotter
+# Determine the base path (useful for when the app is compiled with PyInstaller)
+if getattr(sys, 'frozen', False):
+    base_path = sys._MEIPASS
+else:
+    base_path = os.path.dirname(os.path.abspath(__file__))
 
-# Inizializza l'app Dash
-# Usiamo un tema Bootstrap per un aspetto più gradevole
-app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP], suppress_callback_exceptions=True)
-app.title = "Data Visualizer"
+assets_path = os.path.join(base_path, 'assets')
+pages_path = os.path.join(base_path, 'pages')
 
-# Definisce il layout principale dell'applicazione
+# Initialize the Dash app
+app = dash.Dash(
+    __name__, 
+    use_pages=True, 
+    pages_folder=pages_path if os.path.exists(pages_path) else 'pages',
+    assets_folder=assets_path if os.path.exists(assets_path) else 'assets',
+    external_stylesheets=[dbc.themes.BOOTSTRAP],
+    suppress_callback_exceptions=True
+)
+
 app.layout = html.Div([
-    # dcc.Store è un componente che memorizza dati JSON nel browser dell'utente.
-    # È il modo in cui condividiamo i dati tra le pagine/callback.
-    
-    # Store per la sessione corrente (contiene il DataFrame caricato)
-    dcc.Store(id='session-store', storage_type='session'), # 'session' pulisce i dati alla chiusura della scheda
-    
-    # Store per la configurazione del grafico corrente
-    dcc.Store(id='project-config-store', storage_type='session'),
-
-    # Componente per gestire l'URL della pagina
-    dcc.Location(id='url', refresh=False),
-
-    # Contenitore dove verranno renderizzate le diverse pagine
-    html.Div(id='page-content')
+    dbc.NavbarSimple(
+        children=[
+            dbc.NavItem(dbc.NavLink("Home", href="/")),
+            dbc.NavItem(dbc.NavLink("Canvas", href="/canvas")),
+            dbc.NavItem(dbc.NavLink("Multi Plot", href="/multi-plot")),
+        ],
+        brand_href="/",
+        color="dark",
+        dark=True,
+        className="mb-4"
+    ),
+    dbc.Container(dash.page_container, fluid=True, className="p-4")
 ])
 
-# Registra i callback definiti nei file di layout
-data_loader.register_data_loader_callbacks(app)
-plotter.register_plotter_callbacks(app)
-
-# Callback per il routing: mostra la pagina corretta in base all'URL
-@app.callback(
-    Output('page-content', 'children'),
-    Input('url', 'pathname')
-)
-def display_page(pathname):
-    if pathname == '/plot':
-        return plotter.layout
-    else:
-        # La pagina di default è il data loader
-        return data_loader.layout
-
-# Esegui il server di sviluppo
 if __name__ == '__main__':
-    app.run(debug=True)
+    print("ChartMate starting... Server will start and open shortly.")
+    
+    # Open the default browser (e.g. Chrome) after 1.25 seconds to give the server time to start
+    threading.Timer(1.25, lambda: webbrowser.open("http://127.0.0.1:8050/")).start()
+    
+    # Run the Dash server normally in the main thread
+    app.run(debug=True, port=8050, use_reloader=False)

@@ -1,0 +1,22 @@
+'''
+/ChartMate/
+|
+├── app.py                      # File principale, inizializza l'app e gestisce il routing
+├── assets/
+│   └── style.css               # Stile dell'app
+|
+├── pages/
+│   ├── home.py                 # Layout e callback per la prima schermata (caricamento dati)
+│   └── canvas.py               # Layout e callback per la seconda schermata (grafici)
+|
+├── utils/
+│   ├── data_handler.py         # Gestisce il caricamento e l'elaborazione dei dati
+│   └── storage.py              # Gestisce il salvataggio e il caricamento dei progetti
+│   └── projecs.json            # File JSON per salvare i progetti
+|
+├── Requirements.txt            # Dipendenze del progetto
+├── README.md                   # Leggimi prima di usare il programma
+├── ChartMate_Structure.txt     # Struttura del progetto
+├── LICENSE                     # Licenza del progetto
+└── .gitignore                  # Per escludere file non necessari da Git
+'''
