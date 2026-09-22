@@ -18,6 +18,9 @@
   --amber: #d97706;
   --amber-light: #fffbeb;
   --rose: #e11d48;
+  --rose-light: #fff1f2;
+  --purple: #7c3aed;
+  --purple-light: #f5f3ff;
   --radius: 8px;
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
@@ -113,7 +116,7 @@ header.cm-navbar {
 
 /* Sidebar Panels */
 .sidebar {
-  width: 410px;
+  width: 440px;
   background: var(--surface);
   border-right: 1px solid var(--border);
   display: flex;
@@ -229,6 +232,11 @@ select.form-select:focus, input.form-input:focus {
 .cm-badge-amber {
   background: var(--amber-light);
   color: var(--amber);
+}
+
+.cm-badge-rose {
+  background: var(--rose-light);
+  color: var(--rose);
 }
 
 /* Button Styles */
@@ -412,4 +420,51 @@ table.cm-table tr:hover {
   background: var(--primary);
   color: #ffffff;
   border-color: var(--primary);
+}
+
+/* Trace Styler Card */
+.trace-card {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px;
+  margin-bottom: 8px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+}
+
+.trace-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.trace-name {
+  font-weight: 600;
+  font-size: 0.8rem;
+  color: #000000;
+}
+
+.trace-controls {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.trace-select {
+  font-size: 0.76rem;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: #ffffff;
+  outline: none;
+}
+
+.trace-color-input {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
 }

@@ -21,39 +21,59 @@ interface ParseOptions {
   max_rows?: number;
 }
 
+interface TraceConfig {
+  column: string;
+  axis: 'y1' | 'y2' | 'y3' | 'y4';
+  chartType: 'line' | 'scatter' | 'bar' | 'area';
+  color: string;
+  lineWidth: number;
+  lineDash: 'solid' | 'dash' | 'dot';
+}
+
 interface AppState {
   currentTab: 'data' | 'canvas' | 'multi';
   filePath: string | null;
   dataset: DatasetPreview | null;
   
   // Ingestion & Parsing Config
-  separator: string; // 'auto', ',', ';', '\t', '|'
-  decimal: string;   // '.', ','
+  separator: string;
+  decimal: string;
   hasTimestamp: boolean;
   timestampCol: string;
   timestampFormat: string;
   
-  // Timeframe Filtering (Now active in Canvas Studio)
+  // Timeframe Filtering
   timeframeMode: 'all' | 'day' | 'week' | 'month' | 'custom';
   startDate: string;
   endDate: string;
   
-  // Canvas Mapping
+  // Canvas Mapping & Axes
   selectedX: string;
-  selectedY1: string[];
-  selectedY2: string[];
-  selectedY3: string[];
-  chartType: string;
+  traces: TraceConfig[];
   preset: 'single' | 'double' | 'square' | 'custom';
   widthCm: number;
   heightCm: number;
   
+  // Axis Titles
+  y1Title: string;
+  y2Title: string;
+  y3Title: string;
+  y4Title: string;
+  
+  // Typography
+  fontFamily: string;
+  fontSize: number;
+  
   // Smart Annotations
-  peakTracker: boolean;
+  peakMode: 'none' | 'global' | 'daily' | 'weekly';
   comfortBand: boolean;
+  comfortSeason: 'winter' | 'summer' | 'custom';
   comfortMin: number;
   comfortMax: number;
+  comfortColor: string;
 }
+
+const DEFAULT_PALETTE = ['#000000', '#059669', '#0284c7', '#d97706', '#7c3aed', '#e11d48'];
 
 const state: AppState = {
   currentTab: 'data',
@@ -68,17 +88,22 @@ const state: AppState = {
   startDate: '',
   endDate: '',
   selectedX: '',
-  selectedY1: [],
-  selectedY2: [],
-  selectedY3: [],
-  chartType: 'scatter',
+  traces: [],
   preset: 'double',
   widthCm: 17.0,
   heightCm: 9.5,
-  peakTracker: false,
+  y1Title: '',
+  y2Title: '',
+  y3Title: '',
+  y4Title: '',
+  fontFamily: 'Outfit, sans-serif',
+  fontSize: 11,
+  peakMode: 'none',
   comfortBand: false,
+  comfortSeason: 'winter',
   comfortMin: 20.0,
-  comfortMax: 26.0,
+  comfortMax: 22.0,
+  comfortColor: 'rgba(5, 150, 105, 0.12)',
 };
 
 const PRESETS = {
@@ -119,7 +144,7 @@ function renderApp() {
     </header>
 
     <div class="main-container">
-      <!-- VIEW 1: DATA INGESTION ONLY (Clean & Focused) -->
+      <!-- VIEW 1: DATA INGESTION (Source, Delimiters & Preview Table) -->
       <div class="view-panel ${state.currentTab === 'data' ? 'active' : ''}" id="view-data">
         <aside class="sidebar">
           <section class="sidebar-section">
@@ -190,9 +215,6 @@ function renderApp() {
               <div class="form-group">
                 <label class="form-label">Datetime Parsing Format</label>
                 <input type="text" class="form-input" id="cfg-ts-format" value="${state.timestampFormat}" placeholder="%Y-%m-%d %H:%M:%S" />
-                <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 3px;">
-                  Examples: <code>%Y-%m-%d %H:%M:%S</code>, <code>%d/%m/%Y %H:%M</code>
-                </div>
               </div>
             </div>
 
@@ -207,17 +229,17 @@ function renderApp() {
           <div class="data-card">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
               <div>
-                <h2 style="font-size: 1.1rem; font-weight: 700; color: #000000;">Dataset Schema & Raw Data Preview</h2>
+                <h2 style="font-size: 1.1rem; font-weight: 700; color: #000000;">Dataset Schema & Raw Preview</h2>
                 <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">
-                  Showing first 100 rows with detected column headers
+                  Visualizzazione prime 100 righe del file selezionato
                 </div>
               </div>
               <div>
                 ${state.dataset ? `
                   <span class="cm-badge cm-badge-emerald" style="font-size: 0.8rem; padding: 4px 8px;">
-                    ✓ ${state.dataset.columns.length} Columns · ${state.dataset.total_rows} Total Records
+                    ✓ ${state.dataset.columns.length} Colonne · ${state.dataset.total_rows} Righe Totali
                   </span>
-                ` : '<span style="font-size: 0.8rem; color: var(--text-muted);">No dataset loaded</span>'}
+                ` : '<span style="font-size: 0.8rem; color: var(--text-muted);">Nessun dataset caricato</span>'}
               </div>
             </div>
 
@@ -228,11 +250,11 @@ function renderApp() {
         </main>
       </div>
 
-      <!-- VIEW 2: SINGLE CANVAS STUDIO (With Timeframe Selector & Multi-Axis) -->
+      <!-- VIEW 2: SINGLE CANVAS STUDIO (Trace Styler, Multi-Axis Y1-Y4, Advanced Annotations) -->
       <div class="view-panel ${state.currentTab === 'canvas' ? 'active' : ''}" id="view-canvas">
         <aside class="sidebar">
           
-          <!-- 1. TIMEFRAME SELECTOR (Inside Canvas as requested) -->
+          <!-- 1. TIMEFRAME SELECTOR -->
           ${state.hasTimestamp ? `
             <section class="sidebar-section">
               <div class="sidebar-title">
@@ -261,68 +283,120 @@ function renderApp() {
             </section>
           ` : ''}
 
-          <!-- 2. Variables & Axes -->
+          <!-- 2. ASSE X -->
           <section class="sidebar-section">
-            <div class="sidebar-title">Assi e Mappatura Variabili</div>
-            
-            <div class="form-group">
-              <label class="form-label">Asse X (${state.hasTimestamp ? 'Timestamp' : 'Variabile Continua'})</label>
+            <div class="sidebar-title">Asse Orizzontale (X)</div>
+            <div class="form-group" style="margin-bottom: 0;">
               <select class="form-select" id="select-x">
-                <option value="">Seleziona variabile...</option>
+                <option value="">Seleziona variabile X...</option>
                 ${renderColumnOptions(state.selectedX)}
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label">Asse Y1 Primario (Sinistra)</label>
-              <select class="form-select" id="select-y1" multiple style="height: 70px;">
-                ${renderMultipleColumnOptions(state.selectedY1)}
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label">Asse Y2 Secondario (Destra 1)</label>
-              <select class="form-select" id="select-y2" multiple style="height: 55px;">
-                ${renderMultipleColumnOptions(state.selectedY2)}
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label">Asse Y3 Terziario (Destra 2 con Offset)</label>
-              <select class="form-select" id="select-y3" multiple style="height: 50px;">
-                ${renderMultipleColumnOptions(state.selectedY3)}
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label">Tipologia di Grafico Base</label>
-              <select class="form-select" id="select-ctype">
-                <option value="line" ${state.chartType === 'line' ? 'selected' : ''}>Linea Continua</option>
-                <option value="scatter" ${state.chartType === 'scatter' ? 'selected' : ''}>Scatter (Punti)</option>
-                <option value="bar" ${state.chartType === 'bar' ? 'selected' : ''}>Barre Verticali</option>
-                <option value="area" ${state.chartType === 'area' ? 'selected' : ''}>Area Ombreggiata</option>
-                <option value="box" ${state.chartType === 'box' ? 'selected' : ''}>Box Plot</option>
               </select>
             </div>
           </section>
 
-          <!-- 3. Annotazioni Scientifiche -->
+          <!-- 3. TRACE STYLER (PER-TRACCIA: Tipo, Asse Y1-Y4, Colore, Spessore) -->
+          <section class="sidebar-section">
+            <div class="sidebar-title">
+              <span>Tracce & Stile Per-Serie</span>
+              <button class="btn btn-secondary" id="btn-add-trace" style="font-size: 0.72rem; padding: 2px 8px;">
+                + Aggiungi Serie
+              </button>
+            </div>
+            
+            <div id="traces-list-container">
+              ${renderTraceCards()}
+            </div>
+          </section>
+
+          <!-- 4. ETICHETTE E TITOLI ASSI (Y1, Y2, Y3, Y4) -->
+          <section class="sidebar-section">
+            <div class="sidebar-title">Etichette Assi Scientifici</div>
+            <div class="form-group">
+              <label class="form-label">Titolo Y1 (Sinistra)</label>
+              <input type="text" class="form-input" id="axis-y1-title" value="${state.y1Title}" placeholder="es. Temperatura [°C]" />
+            </div>
+            ${state.traces.some(t => t.axis === 'y2') ? `
+              <div class="form-group">
+                <label class="form-label">Titolo Y2 (Destra 1)</label>
+                <input type="text" class="form-input" id="axis-y2-title" value="${state.y2Title}" placeholder="es. Umidità Relativa [%]" />
+              </div>
+            ` : ''}
+            ${state.traces.some(t => t.axis === 'y3') ? `
+              <div class="form-group">
+                <label class="form-label">Titolo Y3 (Destra 2)</label>
+                <input type="text" class="form-input" id="axis-y3-title" value="${state.y3Title}" placeholder="es. CO₂ [ppm]" />
+              </div>
+            ` : ''}
+            ${state.traces.some(t => t.axis === 'y4') ? `
+              <div class="form-group">
+                <label class="form-label">Titolo Y4 (Destra 3)</label>
+                <input type="text" class="form-input" id="axis-y4-title" value="${state.y4Title}" placeholder="es. Potenza Elettrica [kW]" />
+              </div>
+            ` : ''}
+          </section>
+
+          <!-- 5. SMART SCIENTIFIC ANNOTATIONS -->
           <section class="sidebar-section">
             <div class="sidebar-title">Smart Scientific Annotations</div>
-            <div style="display: flex; flex-direction: column; gap: 8px;">
-              <label style="display: flex; align-items: center; gap: 8px; font-size: 0.82rem; cursor: pointer;">
-                <input type="checkbox" id="check-peaks" ${state.peakTracker ? 'checked' : ''} />
-                <span style="color: #000000;"><strong>Peak & Valley Tracker</strong> (Max & Min)</span>
-              </label>
-              
-              <label style="display: flex; align-items: center; gap: 8px; font-size: 0.82rem; cursor: pointer;">
+            
+            <!-- Peak Tracker Configurabile -->
+            <div class="form-group">
+              <label class="form-label">Peak & Valley Tracker</label>
+              <select class="form-select" id="cfg-peak-mode">
+                <option value="none" ${state.peakMode === 'none' ? 'selected' : ''}>Disattivato</option>
+                <option value="global" ${state.peakMode === 'global' ? 'selected' : ''}>🔴 Max & 🔵 Min Globale (Intervallo Attivo)</option>
+                <option value="daily" ${state.peakMode === 'daily' ? 'selected' : ''}>📅 Estremi Giornalieri (Picco Diurno / Min Notturna)</option>
+                <option value="weekly" ${state.peakMode === 'weekly' ? 'selected' : ''}>📊 Estremi Settimanali (Max & Min per Settimana)</option>
+              </select>
+            </div>
+
+            <!-- Comfort / Target Band Personalizzabile -->
+            <div class="form-group">
+              <label style="display: flex; align-items: center; gap: 8px; font-size: 0.82rem; cursor: pointer; margin-bottom: 6px;">
                 <input type="checkbox" id="check-comfort" ${state.comfortBand ? 'checked' : ''} />
-                <span style="color: #000000;"><strong>Target / Comfort Band</strong></span>
+                <span style="font-weight: 600; color: #000000;">Fascia di Target / Comfort IEQ</span>
               </label>
 
-              <div id="comfort-inputs" style="display: ${state.comfortBand ? 'flex' : 'none'}; gap: 6px; margin-top: 4px;">
-                <input type="number" class="form-input" id="comfort-min" value="${state.comfortMin}" style="width: 50%; font-size: 0.78rem;" placeholder="Min" />
-                <input type="number" class="form-input" id="comfort-max" value="${state.comfortMax}" style="width: 50%; font-size: 0.78rem;" placeholder="Max" />
+              <div id="comfort-panel" style="display: ${state.comfortBand ? 'block' : 'none'}; background: #f8fafc; padding: 10px; border-radius: 6px; border: 1px solid var(--border);">
+                <div class="form-group">
+                  <label class="form-label">Stagione / Preset Range</label>
+                  <select class="form-select" id="cfg-comfort-season">
+                    <option value="winter" ${state.comfortSeason === 'winter' ? 'selected' : ''}>Inverno (20.0 - 22.0 °C)</option>
+                    <option value="summer" ${state.comfortSeason === 'summer' ? 'selected' : ''}>Estate (24.0 - 26.0 °C)</option>
+                    <option value="custom" ${state.comfortSeason === 'custom' ? 'selected' : ''}>Personalizzato (Custom)</option>
+                  </select>
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group" style="flex: 1;">
+                    <label class="form-label">Minimo [Y]</label>
+                    <input type="number" step="0.5" class="form-input" id="comfort-min" value="${state.comfortMin}" />
+                  </div>
+                  <div class="form-group" style="flex: 1;">
+                    <label class="form-label">Massimo [Y]</label>
+                    <input type="number" step="0.5" class="form-input" id="comfort-max" value="${state.comfortMax}" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- 6. TIPOGRAFIA SCIENTIFICA (PAPER READY) -->
+          <section class="sidebar-section">
+            <div class="sidebar-title">Tipografia Journal-Ready</div>
+            <div class="form-row">
+              <div class="form-group" style="flex: 2;">
+                <label class="form-label">Font Family</label>
+                <select class="form-select" id="cfg-font-family">
+                  <option value="Outfit, sans-serif" ${state.fontFamily.includes('Outfit') ? 'selected' : ''}>Outfit (Modern Clean)</option>
+                  <option value="Arial, sans-serif" ${state.fontFamily.includes('Arial') ? 'selected' : ''}>Arial / Helvetica</option>
+                  <option value="'Times New Roman', serif" ${state.fontFamily.includes('Times') ? 'selected' : ''}>Times New Roman (Classic)</option>
+                  <option value="'JetBrains Mono', monospace" ${state.fontFamily.includes('JetBrains') ? 'selected' : ''}>JetBrains Mono (Technical)</option>
+                </select>
+              </div>
+              <div class="form-group" style="flex: 1;">
+                <label class="form-label">Dimensione</label>
+                <input type="number" min="8" max="18" class="form-input" id="cfg-font-size" value="${state.fontSize}" />
               </div>
             </div>
           </section>
@@ -340,7 +414,7 @@ function renderApp() {
 
             <div style="display: flex; align-items: center; gap: 12px; font-size: 0.8rem;">
               <span>Dimensioni: <strong id="dim-badge" style="color: #000000;">${state.widthCm} × ${state.heightCm} cm</strong></span>
-              <span class="cm-badge cm-badge-emerald">300/600 DPI Ready</span>
+              <span class="cm-badge cm-badge-emerald">Vector 600 DPI Ready</span>
             </div>
           </div>
 
@@ -363,9 +437,51 @@ function renderColumnOptions(selected: string): string {
   return state.dataset.columns.map(c => `<option value="${c}" ${c === selected ? 'selected' : ''}>${c}</option>`).join('');
 }
 
-function renderMultipleColumnOptions(selectedArr: string[]): string {
-  if (!state.dataset?.columns) return '';
-  return state.dataset.columns.map(c => `<option value="${c}" ${selectedArr.includes(c) ? 'selected' : ''}>${c}</option>`).join('');
+function renderTraceCards(): string {
+  if (state.traces.length === 0) {
+    return `<div style="font-size: 0.78rem; color: var(--text-muted); text-align: center; padding: 12px; border: 1px dashed var(--border); border-radius: 6px;">
+      Nessuna serie aggiunta. Clicca "+ Aggiungi Serie" per iniziare.
+    </div>`;
+  }
+
+  return state.traces.map((trace, idx) => `
+    <div class="trace-card" data-idx="${idx}">
+      <div class="trace-header">
+        <span class="trace-name">${trace.column}</span>
+        <button class="btn btn-secondary btn-del-trace" data-idx="${idx}" style="padding: 1px 6px; font-size: 0.7rem; color: var(--rose);">
+          ✕ Rimuovi
+        </button>
+      </div>
+      
+      <div class="trace-controls">
+        <!-- Asse Target -->
+        <select class="trace-select sel-trace-axis" data-idx="${idx}" title="Asse Y">
+          <option value="y1" ${trace.axis === 'y1' ? 'selected' : ''}>Y1 (Sinistra)</option>
+          <option value="y2" ${trace.axis === 'y2' ? 'selected' : ''}>Y2 (Destra 1)</option>
+          <option value="y3" ${trace.axis === 'y3' ? 'selected' : ''}>Y3 (Destra 2)</option>
+          <option value="y4" ${trace.axis === 'y4' ? 'selected' : ''}>Y4 (Destra 3)</option>
+        </select>
+
+        <!-- Tipologia di grafico per serie -->
+        <select class="trace-select sel-trace-type" data-idx="${idx}" title="Tipo di Traccia">
+          <option value="line" ${trace.chartType === 'line' ? 'selected' : ''}>📈 Linea</option>
+          <option value="scatter" ${trace.chartType === 'scatter' ? 'selected' : ''}>⚪ Scatter</option>
+          <option value="bar" ${trace.chartType === 'bar' ? 'selected' : ''}>📊 Barre</option>
+          <option value="area" ${trace.chartType === 'area' ? 'selected' : ''}>▲ Area</option>
+        </select>
+
+        <!-- Stile Tratteggio -->
+        <select class="trace-select sel-trace-dash" data-idx="${idx}" title="Tratteggio Linea">
+          <option value="solid" ${trace.lineDash === 'solid' ? 'selected' : ''}>— Continua</option>
+          <option value="dash" ${trace.lineDash === 'dash' ? 'selected' : ''}>-- Tratteggiata</option>
+          <option value="dot" ${trace.lineDash === 'dot' ? 'selected' : ''}>·· Puntata</option>
+        </select>
+
+        <!-- Colore Personalizzato -->
+        <input type="color" class="trace-color-input inp-trace-color" data-idx="${idx}" value="${trace.color}" title="Colore Serie" />
+      </div>
+    </div>
+  `).join('');
 }
 
 function renderPreviewTable(): string {
@@ -427,42 +543,38 @@ function attachEventListeners() {
     }
   });
 
-  // Config: Separator
+  // Delimiter & Decimal Config
   document.getElementById('cfg-separator')?.addEventListener('change', (e) => {
     state.separator = (e.target as HTMLSelectElement).value;
   });
 
-  // Config: Decimal
   document.getElementById('cfg-decimal')?.addEventListener('change', (e) => {
     state.decimal = (e.target as HTMLSelectElement).value;
   });
 
-  // Config: Re-Parse
   document.getElementById('btn-reparse')?.addEventListener('click', async () => {
     if (state.filePath) {
       await loadFile(state.filePath);
     }
   });
 
-  // Config: Timestamp Checkbox
+  // Timestamp Checkbox
   document.getElementById('cfg-has-ts')?.addEventListener('change', (e) => {
     state.hasTimestamp = (e.target as HTMLInputElement).checked;
     const panel = document.getElementById('ts-config-panel');
     if (panel) panel.style.display = state.hasTimestamp ? 'block' : 'none';
   });
 
-  // Config: Timestamp Column
   document.getElementById('cfg-ts-col')?.addEventListener('change', (e) => {
     state.timestampCol = (e.target as HTMLSelectElement).value;
     state.selectedX = state.timestampCol;
   });
 
-  // Config: Timestamp Format
   document.getElementById('cfg-ts-format')?.addEventListener('input', (e) => {
     state.timestampFormat = (e.target as HTMLInputElement).value;
   });
 
-  // Canvas Timeframe Pills
+  // Canvas: Timeframe
   document.querySelectorAll('.timeframe-pill').forEach(pill => {
     pill.addEventListener('click', (e) => {
       const mode = (e.target as HTMLElement).getAttribute('data-tf') as any;
@@ -474,7 +586,6 @@ function attachEventListeners() {
     });
   });
 
-  // Canvas Date Inputs
   document.getElementById('canvas-start-date')?.addEventListener('change', (e) => {
     state.startDate = (e.target as HTMLInputElement).value;
     state.timeframeMode = 'custom';
@@ -487,36 +598,107 @@ function attachEventListeners() {
     updateChart();
   });
 
-  // Canvas Studio: Select X
+  // Canvas: Select X
   document.getElementById('select-x')?.addEventListener('change', (e) => {
     state.selectedX = (e.target as HTMLSelectElement).value;
     updateChart();
   });
 
-  // Select Y1
-  document.getElementById('select-y1')?.addEventListener('change', (e) => {
-    const opts = Array.from((e.target as HTMLSelectElement).selectedOptions);
-    state.selectedY1 = opts.map(o => o.value);
+  // Trace Styler: Add Trace Button
+  document.getElementById('btn-add-trace')?.addEventListener('click', () => {
+    if (!state.dataset || state.dataset.columns.length === 0) return;
+    
+    // Pick the first column that isn't X and isn't already added, or any column
+    const available = state.dataset.columns.filter(c => c !== state.selectedX && !state.traces.some(t => t.column === c));
+    const nextCol = available.length > 0 ? available[0] : state.dataset.columns[1] || state.dataset.columns[0];
+    
+    const nextColor = DEFAULT_PALETTE[state.traces.length % DEFAULT_PALETTE.length];
+    state.traces.push({
+      column: nextCol,
+      axis: state.traces.length === 0 ? 'y1' : (state.traces.length === 1 ? 'y2' : 'y1'),
+      chartType: 'line',
+      color: nextColor,
+      lineWidth: 2.0,
+      lineDash: 'solid'
+    });
+
+    renderApp();
+  });
+
+  // Trace Styler: Delete Trace
+  document.querySelectorAll('.btn-del-trace').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const idx = parseInt((e.target as HTMLElement).getAttribute('data-idx') || '0', 10);
+      state.traces.splice(idx, 1);
+      renderApp();
+    });
+  });
+
+  // Trace Styler: Per-trace Axis Change
+  document.querySelectorAll('.sel-trace-axis').forEach(sel => {
+    sel.addEventListener('change', (e) => {
+      const idx = parseInt((e.target as HTMLElement).getAttribute('data-idx') || '0', 10);
+      state.traces[idx].axis = (e.target as HTMLSelectElement).value as any;
+      renderApp();
+    });
+  });
+
+  // Trace Styler: Per-trace Type Change (Line, Scatter, Bar, Area)
+  document.querySelectorAll('.sel-trace-type').forEach(sel => {
+    sel.addEventListener('change', (e) => {
+      const idx = parseInt((e.target as HTMLElement).getAttribute('data-idx') || '0', 10);
+      state.traces[idx].chartType = (e.target as HTMLSelectElement).value as any;
+      updateChart();
+    });
+  });
+
+  // Trace Styler: Line Dash
+  document.querySelectorAll('.sel-trace-dash').forEach(sel => {
+    sel.addEventListener('change', (e) => {
+      const idx = parseInt((e.target as HTMLElement).getAttribute('data-idx') || '0', 10);
+      state.traces[idx].lineDash = (e.target as HTMLSelectElement).value as any;
+      updateChart();
+    });
+  });
+
+  // Trace Styler: Color
+  document.querySelectorAll('.inp-trace-color').forEach(inp => {
+    inp.addEventListener('input', (e) => {
+      const idx = parseInt((e.target as HTMLElement).getAttribute('data-idx') || '0', 10);
+      state.traces[idx].color = (e.target as HTMLInputElement).value;
+      updateChart();
+    });
+  });
+
+  // Axis Titles Inputs
+  document.getElementById('axis-y1-title')?.addEventListener('input', (e) => {
+    state.y1Title = (e.target as HTMLInputElement).value;
     updateChart();
   });
 
-  // Select Y2
-  document.getElementById('select-y2')?.addEventListener('change', (e) => {
-    const opts = Array.from((e.target as HTMLSelectElement).selectedOptions);
-    state.selectedY2 = opts.map(o => o.value);
+  document.getElementById('axis-y2-title')?.addEventListener('input', (e) => {
+    state.y2Title = (e.target as HTMLInputElement).value;
     updateChart();
   });
 
-  // Select Y3
-  document.getElementById('select-y3')?.addEventListener('change', (e) => {
-    const opts = Array.from((e.target as HTMLSelectElement).selectedOptions);
-    state.selectedY3 = opts.map(o => o.value);
+  document.getElementById('axis-y3-title')?.addEventListener('input', (e) => {
+    state.y3Title = (e.target as HTMLInputElement).value;
     updateChart();
   });
 
-  // Chart Type
-  document.getElementById('select-ctype')?.addEventListener('change', (e) => {
-    state.chartType = (e.target as HTMLSelectElement).value;
+  document.getElementById('axis-y4-title')?.addEventListener('input', (e) => {
+    state.y4Title = (e.target as HTMLInputElement).value;
+    updateChart();
+  });
+
+  // Typography Config
+  document.getElementById('cfg-font-family')?.addEventListener('change', (e) => {
+    state.fontFamily = (e.target as HTMLSelectElement).value;
+    updateChart();
+  });
+
+  document.getElementById('cfg-font-size')?.addEventListener('input', (e) => {
+    state.fontSize = parseInt((e.target as HTMLInputElement).value, 10) || 11;
     updateChart();
   });
 
@@ -533,30 +715,46 @@ function attachEventListeners() {
     });
   });
 
-  // Annotations
-  document.getElementById('check-peaks')?.addEventListener('change', (e) => {
-    state.peakTracker = (e.target as HTMLInputElement).checked;
+  // Peak Mode Selector (None, Global, Daily, Weekly)
+  document.getElementById('cfg-peak-mode')?.addEventListener('change', (e) => {
+    state.peakMode = (e.target as HTMLSelectElement).value as any;
     updateChart();
   });
 
+  // Comfort Band Toggle & Season Presets
   document.getElementById('check-comfort')?.addEventListener('change', (e) => {
     state.comfortBand = (e.target as HTMLInputElement).checked;
-    const inputs = document.getElementById('comfort-inputs');
-    if (inputs) inputs.style.display = state.comfortBand ? 'flex' : 'none';
+    const panel = document.getElementById('comfort-panel');
+    if (panel) panel.style.display = state.comfortBand ? 'block' : 'none';
     updateChart();
+  });
+
+  document.getElementById('cfg-comfort-season')?.addEventListener('change', (e) => {
+    const season = (e.target as HTMLSelectElement).value;
+    state.comfortSeason = season as any;
+    if (season === 'winter') {
+      state.comfortMin = 20.0;
+      state.comfortMax = 22.0;
+    } else if (season === 'summer') {
+      state.comfortMin = 24.0;
+      state.comfortMax = 26.0;
+    }
+    renderApp();
   });
 
   document.getElementById('comfort-min')?.addEventListener('input', (e) => {
     state.comfortMin = parseFloat((e.target as HTMLInputElement).value) || 0;
+    state.comfortSeason = 'custom';
     updateChart();
   });
 
   document.getElementById('comfort-max')?.addEventListener('input', (e) => {
     state.comfortMax = parseFloat((e.target as HTMLInputElement).value) || 0;
+    state.comfortSeason = 'custom';
     updateChart();
   });
 
-  // Export
+  // Export 1-Click SVG
   document.getElementById('btn-export')?.addEventListener('click', () => {
     Plotly.downloadImage('plotly-chart', {
       format: 'svg',
@@ -642,9 +840,30 @@ async function loadFile(path: string) {
       state.timestampFormat = preview.suggested_ts_format;
     }
 
-    // Assign initial Y1 trace
-    if (preview.columns.length > 1 && state.selectedY1.length === 0) {
-      state.selectedY1 = [preview.columns[1]];
+    // Default Traces Setup
+    state.traces = [];
+    if (preview.columns.length > 1) {
+      state.traces.push({
+        column: preview.columns[1],
+        axis: 'y1',
+        chartType: 'line',
+        color: '#000000',
+        lineWidth: 2.0,
+        lineDash: 'solid'
+      });
+      state.y1Title = preview.columns[1];
+    }
+
+    if (preview.columns.length > 2) {
+      state.traces.push({
+        column: preview.columns[2],
+        axis: 'y2',
+        chartType: 'line',
+        color: '#0284c7',
+        lineWidth: 1.8,
+        lineDash: 'dash'
+      });
+      state.y2Title = preview.columns[2];
     }
 
     // Default timeframe
@@ -674,11 +893,12 @@ function updateChart() {
 
   let xVals: any[] = [];
   let traces: any[] = [];
+  const annotations: any[] = [];
 
   if (state.dataset && state.selectedX) {
     const xIdx = state.dataset.columns.indexOf(state.selectedX);
     
-    // Filter rows by Timeframe if Timestamp is active and dates are set
+    // Filter rows by Timeframe
     let activeRows = state.dataset.rows;
     if (state.hasTimestamp && state.selectedX === state.timestampCol && (state.startDate || state.endDate)) {
       activeRows = state.dataset.rows.filter(r => {
@@ -692,70 +912,44 @@ function updateChart() {
 
     xVals = activeRows.map(r => r[xIdx]);
 
-    const palette = ['#000000', '#059669', '#0284c7', '#d97706', '#7c3aed'];
+    // Build Traces based on TraceConfig (Individual types: line, bar, area, scatter)
+    state.traces.forEach((t) => {
+      const yIdx = state.dataset!.columns.indexOf(t.column);
+      if (yIdx === -1) return;
 
-    // Primary Y1 Traces
-    state.selectedY1.forEach((col, idx) => {
-      const yIdx = state.dataset!.columns.indexOf(col);
       const yVals = activeRows.map(r => {
         let val = r[yIdx];
         if (state.decimal === ',') val = val?.replace(',', '.');
         return parseFloat(val) || null;
       });
 
-      traces.push({
+      // Trace Object
+      const traceObj: any = {
         x: xVals,
         y: yVals,
-        name: col,
-        type: state.chartType === 'area' ? 'scatter' : state.chartType,
-        fill: state.chartType === 'area' ? 'tozeroy' : undefined,
-        mode: state.chartType === 'line' || state.chartType === 'area' ? 'lines' : 'markers',
-        line: { color: palette[idx % palette.length], width: 2.0 },
-        marker: { size: 5, color: palette[idx % palette.length] }
-      });
+        name: t.column,
+        yaxis: t.axis === 'y1' ? 'y' : t.axis,
+        type: t.chartType === 'area' ? 'scatter' : t.chartType,
+        fill: t.chartType === 'area' ? 'tozeroy' : undefined,
+        mode: t.chartType === 'line' || t.chartType === 'area' ? 'lines' : 'markers',
+        line: { color: t.color, width: t.lineWidth, dash: t.lineDash },
+        marker: { size: 5, color: t.color }
+      };
+
+      if (t.chartType === 'bar') {
+        traceObj.marker = { color: t.color, opacity: 0.85 };
+      }
+
+      traces.push(traceObj);
+
+      // Peak & Valley Tracker Logic for this trace
+      if (state.peakMode !== 'none' && yVals.length > 0 && t.axis === 'y1') {
+        calculatePeakAnnotations(xVals, yVals, state.peakMode, annotations, t.axis === 'y1' ? 'y' : t.axis);
+      }
     });
 
-    // Secondary Y2 Traces
-    state.selectedY2.forEach((col) => {
-      const yIdx = state.dataset!.columns.indexOf(col);
-      const yVals = activeRows.map(r => {
-        let val = r[yIdx];
-        if (state.decimal === ',') val = val?.replace(',', '.');
-        return parseFloat(val) || null;
-      });
-
-      traces.push({
-        x: xVals,
-        y: yVals,
-        name: `${col} (Y2)`,
-        yaxis: 'y2',
-        type: state.chartType === 'area' ? 'scatter' : state.chartType,
-        mode: 'lines',
-        line: { color: '#0284c7', width: 2, dash: 'dash' }
-      });
-    });
-
-    // Tertiary Y3 Traces
-    state.selectedY3.forEach((col) => {
-      const yIdx = state.dataset!.columns.indexOf(col);
-      const yVals = activeRows.map(r => {
-        let val = r[yIdx];
-        if (state.decimal === ',') val = val?.replace(',', '.');
-        return parseFloat(val) || null;
-      });
-
-      traces.push({
-        x: xVals,
-        y: yVals,
-        name: `${col} (Y3)`,
-        yaxis: 'y3',
-        type: state.chartType === 'area' ? 'scatter' : state.chartType,
-        mode: 'lines',
-        line: { color: '#d97706', width: 1.8, dash: 'dot' }
-      });
-    });
   } else {
-    // Demo Waveform
+    // Default Demo waveform
     const steps = 30;
     xVals = Array.from({ length: steps }, (_, i) => `2026-09-01 ${String(i % 24).padStart(2, '0')}:00`);
     const yVals = Array.from({ length: steps }, (_, i) => 21.0 + 4.0 * Math.sin(i / 3));
@@ -770,68 +964,70 @@ function updateChart() {
     });
   }
 
-  // Academic Journal-Ready Layout (Clean Black High-Contrast Standard)
-  const hasY2 = state.selectedY2.length > 0;
-  const hasY3 = state.selectedY3.length > 0;
+  // Multi-Axis Verification
+  const hasY2 = state.traces.some(t => t.axis === 'y2');
+  const hasY3 = state.traces.some(t => t.axis === 'y3');
+  const hasY4 = state.traces.some(t => t.axis === 'y4');
+
+  let rightMargin = 30;
+  if (hasY4) rightMargin = 150;
+  else if (hasY3) rightMargin = 110;
+  else if (hasY2) rightMargin = 65;
 
   const layout: any = {
     width: pxW,
     height: pxH,
-    margin: { 
-      l: 65, 
-      r: hasY3 ? 110 : (hasY2 ? 65 : 30), 
-      t: 35, 
-      b: 50 
-    },
+    margin: { l: 65, r: rightMargin, t: 35, b: 50 },
     paper_bgcolor: '#ffffff',
     plot_bgcolor: '#ffffff',
-    font: { family: 'Outfit, Arial, sans-serif', size: 11, color: '#000000' },
+    font: { family: state.fontFamily, size: state.fontSize, color: '#000000' },
+    annotations: annotations,
     xaxis: {
-      title: { text: state.selectedX || 'Time / Parameter', font: { size: 12, color: '#000000', weight: 600 } },
+      title: { text: state.selectedX || 'Time / Parameter', font: { size: state.fontSize + 1, color: '#000000', weight: 600 } },
       gridcolor: '#e2e8f0',
       linecolor: '#000000',
       linewidth: 1.2,
       showline: true,
       mirror: true,
-      tickfont: { family: 'JetBrains Mono, monospace', size: 10, color: '#000000' }
+      tickfont: { family: 'JetBrains Mono, monospace', size: state.fontSize - 1, color: '#000000' }
     },
     yaxis: {
-      title: { text: state.selectedY1.join(', ') || 'Primary Y1', font: { size: 12, color: '#000000', weight: 600 } },
+      title: { text: state.y1Title || 'Primary Y1', font: { size: state.fontSize + 1, color: '#000000', weight: 600 } },
       gridcolor: '#e2e8f0',
       linecolor: '#000000',
       linewidth: 1.2,
       showline: true,
       mirror: true,
-      tickfont: { family: 'JetBrains Mono, monospace', size: 10, color: '#000000' }
+      tickfont: { family: 'JetBrains Mono, monospace', size: state.fontSize - 1, color: '#000000' }
     },
     legend: {
       orientation: 'h',
       x: 0.5,
       y: 1.12,
       xanchor: 'center',
-      font: { size: 10, color: '#000000' }
+      font: { size: state.fontSize - 1, color: '#000000' }
     },
     shapes: []
   };
 
-  // Secondary Y2
+  // Y2 Axis (Destra 1)
   if (hasY2) {
     layout.yaxis2 = {
-      title: { text: state.selectedY2.join(', '), font: { size: 11, color: '#0284c7', weight: 600 } },
+      title: { text: state.y2Title || 'Y2 Axis', font: { size: state.fontSize, color: '#0284c7', weight: 600 } },
       overlaying: 'y',
       side: 'right',
       gridcolor: 'transparent',
       linecolor: '#0284c7',
       linewidth: 1.2,
       showline: true,
-      tickfont: { family: 'JetBrains Mono, monospace', size: 9, color: '#0284c7' }
+      tickfont: { family: 'JetBrains Mono, monospace', size: state.fontSize - 2, color: '#0284c7' }
     };
   }
 
-  // Tertiary Y3 with Offset
+  // Y3 Axis (Destra 2 con Offset)
   if (hasY3) {
     layout.yaxis3 = {
-      title: { text: state.selectedY3.join(', '), font: { size: 11, color: '#d97706', weight: 600 } },
+      title: { text: state.y3Title || 'Y3 Axis', font: { size: state.fontSize, color: '#d97706', weight: 600 } },
       overlaying: 'y',
       side: 'right',
       position: 0.93,
@@ -839,7 +1035,22 @@ function updateChart() {
       linecolor: '#d97706',
       linewidth: 1.2,
       showline: true,
-      tickfont: { family: 'JetBrains Mono, monospace', size: 9, color: '#d97706' }
+      tickfont: { family: 'JetBrains Mono, monospace', size: state.fontSize - 2, color: '#d97706' }
+    };
+  }
+
+  // Y4 Axis (Destra 3 con Offset Avanzato)
+  if (hasY4) {
+    layout.yaxis4 = {
+      title: { text: state.y4Title || 'Y4 Axis', font: { size: state.fontSize, color: '#7c3aed', weight: 600 } },
+      overlaying: 'y',
+      side: 'right',
+      position: 0.86,
+      gridcolor: 'transparent',
+      linecolor: '#7c3aed',
+      linewidth: 1.2,
+      showline: true,
+      tickfont: { family: 'JetBrains Mono, monospace', size: state.fontSize - 2, color: '#7c3aed' }
     };
   }
 
@@ -853,13 +1064,106 @@ function updateChart() {
       x1: 1,
       y0: state.comfortMin,
       y1: state.comfortMax,
-      fillcolor: 'rgba(5, 150, 105, 0.12)',
+      fillcolor: state.comfortSeason === 'winter' ? 'rgba(5, 150, 105, 0.12)' : 'rgba(217, 119, 6, 0.12)',
       line: { width: 0 },
       layer: 'below'
     });
   }
 
   Plotly.newPlot(chartEl, traces, layout, { responsive: true, displayModeBar: false });
+}
+
+function calculatePeakAnnotations(xVals: any[], yVals: (number | null)[], mode: string, annotations: any[], yref: string) {
+  if (mode === 'global') {
+    let maxVal = -Infinity;
+    let minVal = Infinity;
+    let maxIdx = -1;
+    let minIdx = -1;
+
+    for (let i = 0; i < yVals.length; i++) {
+      const v = yVals[i];
+      if (v !== null && !isNaN(v)) {
+        if (v > maxVal) { maxVal = v; maxIdx = i; }
+        if (v < minVal) { minVal = v; minIdx = i; }
+      }
+    }
+
+    if (maxIdx !== -1) {
+      annotations.push({
+        x: xVals[maxIdx],
+        y: maxVal,
+        xref: 'x',
+        yref: yref,
+        text: `🔴 Max: ${maxVal.toFixed(2)}`,
+        showarrow: true,
+        arrowhead: 2,
+        arrowcolor: '#e11d48',
+        font: { size: 10, color: '#e11d48', family: 'JetBrains Mono, monospace' },
+        bgcolor: '#ffffff',
+        bordercolor: '#e11d48',
+        borderwidth: 1
+      });
+    }
+
+    if (minIdx !== -1) {
+      annotations.push({
+        x: xVals[minIdx],
+        y: minVal,
+        xref: 'x',
+        yref: yref,
+        text: `🔵 Min: ${minVal.toFixed(2)}`,
+        showarrow: true,
+        arrowhead: 2,
+        arrowcolor: '#0284c7',
+        font: { size: 10, color: '#0284c7', family: 'JetBrains Mono, monospace' },
+        bgcolor: '#ffffff',
+        bordercolor: '#0284c7',
+        borderwidth: 1
+      });
+    }
+  } else if (mode === 'daily') {
+    // Group by Day (YYYY-MM-DD)
+    const dayGroups: Record<string, { maxVal: number; maxIdx: number; minVal: number; minIdx: number }> = {};
+
+    for (let i = 0; i < yVals.length; i++) {
+      const v = yVals[i];
+      if (v === null || isNaN(v)) continue;
+      const day = String(xVals[i]).split(' ')[0];
+      if (!dayGroups[day]) {
+        dayGroups[day] = { maxVal: v, maxIdx: i, minVal: v, minIdx: i };
+      } else {
+        if (v > dayGroups[day].maxVal) { dayGroups[day].maxVal = v; dayGroups[day].maxIdx = i; }
+        if (v < dayGroups[day].minVal) { dayGroups[day].minVal = v; dayGroups[day].minIdx = i; }
+      }
+    }
+
+    Object.values(dayGroups).forEach(g => {
+      annotations.push({
+        x: xVals[g.maxIdx],
+        y: g.maxVal,
+        xref: 'x',
+        yref: yref,
+        text: `${g.maxVal.toFixed(1)}`,
+        showarrow: true,
+        arrowhead: 1,
+        arrowsize: 0.8,
+        arrowcolor: '#e11d48',
+        font: { size: 9, color: '#e11d48', family: 'JetBrains Mono, monospace' }
+      });
+      annotations.push({
+        x: xVals[g.minIdx],
+        y: g.minVal,
+        xref: 'x',
+        yref: yref,
+        text: `${g.minVal.toFixed(1)}`,
+        showarrow: true,
+        arrowhead: 1,
+        arrowsize: 0.8,
+        arrowcolor: '#0284c7',
+        font: { size: 9, color: '#0284c7', family: 'JetBrains Mono, monospace' }
+      });
+    });
+  }
 }
 
 // Boot application

@@ -28,13 +28,14 @@ Per risolvere definitivamente i colli di bottiglia legati alla distribuzione su 
   - Smart annotations: Comfort / Target Band integrata per soglie IEQ.
   - Design pulito e professionale proprietario con i font **Outfit** e **JetBrains Mono**.
 - **Step 1 Completato: Ingestione Dati Avanzata & Finestra Temporale**:
-  - Nuova scheda principale `1. Data Ingestion & Timeframe` con controllo completo sul parsing del dataset.
-  - Selettore del delimitatore di colonna (*Auto-Detect*, virgola `,`, punto e virgola `;`, tabulazione `\t`, pipe `|`).
-  - Gestione del formato decimale (punto `.` vs virgola `,` europea).
-  - Riconoscimento ed estrazione automatica dei metadati del Timestamp (colonna data e pattern temporale es. `%Y-%m-%d %H:%M:%S`).
-  - Tabella interattiva di anteprima a scorrimento con prime 100 righe e conteggio record totali.
-  - Filtro dinamico della finestra di analisi: selettori rapidi *Full Range*, *1 Day*, *1 Week*, *1 Month* e *Custom Date Range*.
-  - Transizione fluida e reattiva verso la scheda *Single Canvas Studio*.
+  - Scheda `1. Data Source & Parser` dedicata unicamente all'ingestione, delimitatori e preview dati raw.
+  - Filtro dinamico del Timeframe collocato direttamente nella barra laterale del Canvas (Full, 1 Day, 1 Week, 1 Month, Custom).
+- **Step 2 Completato: Trace Styler Per-Serie, Fino a 4 Assi Y, Annotazioni & Tipografia**:
+  - **Trace Styler Indipendente**: pulsante `+ Aggiungi Serie` per configurare per ciascuna traccia tipo (Linea, Barre, Area, Scatter), stile tratteggio (solid, dash, dot), asse di riferimento e colore dedicato.
+  - **Supporto Multi-Asse Fino a 4 Assi Y ($Y_1, Y_2, Y_3, Y_4$)**: assi destri scalati con offset geometrico dinamico, titoli e unità di misura personalizzabili.
+  - **Peak & Valley Tracker Configurabile**: modalità *Disattivato*, *Max & Min Globale* o *Estremi Giornalieri* (picco diurno e minimo notturno con badge e callout precisi).
+  - **Comfort / Target Band Stagionale**: preset 1-click tra Inverno ($20 - 22^\circ\text{C}$), Estate ($24 - 26^\circ\text{C}$) o Custom liberamente editabile.
+  - **Tipografia Scientifica Paper-Ready**: testi rigorosamente neri ad alto contrasto per paper scientifici, selettore font (*Outfit*, *Arial*, *Times New Roman*, *JetBrains Mono*) e dimensione font configurabile.
 - **Eseguibile Windows Aggiornato**:
   - Rigenerato [`ChartMate.exe`](file:///c:/Users/rober/Documents/GitHub/ChartMate/ChartMate.exe) (**24.68 MB**) pronto all'avvio con doppio clic, integrato con `WebView2Loader.dll`.
   - Pulizia automatica `cargo clean` per azzerare lo spazio disco temporaneo.
