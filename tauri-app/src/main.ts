@@ -423,6 +423,18 @@ function renderApp() {
           </div>
         </main>
       </div>
+
+      <!-- VIEW 3: MULTIPLOT GRID -->
+      <div class="view-panel ${state.currentTab === 'multi' ? 'active' : ''}" id="view-multi">
+        <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px; text-align: center; color: var(--text-muted); background: #f8fafc;">
+          <div style="font-size: 3rem; margin-bottom: 12px;">▦</div>
+          <h2 style="font-size: 1.25rem; font-weight: 700; color: #000000; margin-bottom: 6px;">MultiPlot Grid Studio</h2>
+          <p style="font-size: 0.85rem; max-width: 480px; margin-bottom: 16px; line-height: 1.5;">
+            Matrice scientifica di sub-plot (Vertical Stack 3×1, 2×1, Quadranti 2×2) con lettering accademico automatico (a)-(d) e asse temporale sincronizzato.
+          </p>
+          <div class="cm-badge cm-badge-sky" style="font-size: 0.8rem; padding: 6px 12px;">In Arrivo nel Prossimo Step</div>
+        </div>
+      </div>
     </div>
   `;
 
