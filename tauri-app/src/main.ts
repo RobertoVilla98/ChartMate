@@ -496,7 +496,7 @@ function renderPreviewTable(): string {
   }
 
   const thead = `<tr>${state.dataset.columns.map(c => `<th>${c}</th>`).join('')}</tr>`;
-  const tbody = state.dataset.rows.map(row => {
+  const tbody = state.dataset.rows.slice(0, 50).map(row => {
     return `<tr>${row.map(val => `<td>${val}</td>`).join('')}</tr>`;
   }).join('');
 
@@ -765,6 +765,20 @@ function attachEventListeners() {
   });
 }
 
+function toISODate(str: string): string {
+  if (!str) return '';
+  const part = str.trim().split(' ')[0].trim();
+  const mISO = part.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);
+  if (mISO) {
+    return `${mISO[1]}-${mISO[2].padStart(2, '0')}-${mISO[3].padStart(2, '0')}`;
+  }
+  const mEU = part.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
+  if (mEU) {
+    return `${mEU[3]}-${mEU[2].padStart(2, '0')}-${mEU[1].padStart(2, '0')}`;
+  }
+  return part;
+}
+
 function calculateTimeframeDates(mode: string) {
   if (!state.dataset || !state.timestampCol) return;
   const tsIdx = state.dataset.columns.indexOf(state.timestampCol);
@@ -773,8 +787,8 @@ function calculateTimeframeDates(mode: string) {
   const firstVal = state.dataset.rows[0][tsIdx];
   const lastVal = state.dataset.rows[state.dataset.rows.length - 1][tsIdx];
 
-  const firstDateStr = firstVal.split(' ')[0].replace(/\//g, '-');
-  const lastDateStr = lastVal.split(' ')[0].replace(/\//g, '-');
+  const firstDateStr = toISODate(firstVal);
+  const lastDateStr = toISODate(lastVal);
 
   if (mode === 'all') {
     state.startDate = firstDateStr;
@@ -785,13 +799,21 @@ function calculateTimeframeDates(mode: string) {
   } else if (mode === 'week') {
     state.startDate = firstDateStr;
     const d = new Date(firstDateStr);
-    d.setDate(d.getDate() + 7);
-    state.endDate = d.toISOString().split('T')[0];
+    if (!isNaN(d.getTime())) {
+      d.setDate(d.getDate() + 7);
+      state.endDate = d.toISOString().split('T')[0];
+    } else {
+      state.endDate = firstDateStr;
+    }
   } else if (mode === 'month') {
     state.startDate = firstDateStr;
     const d = new Date(firstDateStr);
-    d.setMonth(d.getMonth() + 1);
-    state.endDate = d.toISOString().split('T')[0];
+    if (!isNaN(d.getTime())) {
+      d.setMonth(d.getMonth() + 1);
+      state.endDate = d.toISOString().split('T')[0];
+    } else {
+      state.endDate = firstDateStr;
+    }
   }
 }
 
@@ -821,7 +843,7 @@ async function loadFile(path: string) {
       decimal: state.decimal,
       timestamp_col: state.timestampCol || undefined,
       timestamp_format: state.timestampFormat || undefined,
-      max_rows: 100
+      max_rows: undefined
     };
 
     const preview = await invoke<DatasetPreview>('read_dataset_sample', { filePath: path, options });
@@ -832,7 +854,13 @@ async function loadFile(path: string) {
       state.timestampCol = preview.suggested_ts_col;
       state.selectedX = preview.suggested_ts_col;
       state.hasTimestamp = true;
+      calculateTimeframeDates('all');
     } else if (preview.columns.length > 0) {
+      state.hasTimestamp = false;
+      state.timestampCol = '';
+      state.timeframeMode = 'all';
+      state.startDate = '';
+      state.endDate = '';
       state.selectedX = preview.columns[0];
     }
 
@@ -866,9 +894,6 @@ async function loadFile(path: string) {
       state.y2Title = preview.columns[2];
     }
 
-    // Default timeframe
-    calculateTimeframeDates('all');
-
     renderApp();
   } catch (err) {
     alert(`Errore lettura file locale: ${err}`);
@@ -898,11 +923,11 @@ function updateChart() {
   if (state.dataset && state.selectedX) {
     const xIdx = state.dataset.columns.indexOf(state.selectedX);
     
-    // Filter rows by Timeframe
+    // Filter rows by Timeframe ONLY if mode is NOT 'all'
     let activeRows = state.dataset.rows;
-    if (state.hasTimestamp && state.selectedX === state.timestampCol && (state.startDate || state.endDate)) {
+    if (state.timeframeMode !== 'all' && state.hasTimestamp && state.selectedX === state.timestampCol && (state.startDate || state.endDate)) {
       activeRows = state.dataset.rows.filter(r => {
-        const val = r[xIdx]?.split(' ')[0]?.replace(/\//g, '-');
+        const val = toISODate(r[xIdx]);
         if (!val) return true;
         if (state.startDate && val < state.startDate) return false;
         if (state.endDate && val > state.endDate) return false;
@@ -918,26 +943,59 @@ function updateChart() {
       if (yIdx === -1) return;
 
       const yVals = activeRows.map(r => {
-        let val = r[yIdx];
-        if (state.decimal === ',') val = val?.replace(',', '.');
-        return parseFloat(val) || null;
+        let valStr = String(r[yIdx] ?? '').trim();
+        if (valStr === '' || valStr === 'null' || valStr === 'nan' || valStr === 'None') return null;
+
+        if (valStr.includes(',') && valStr.includes('.')) {
+          if (valStr.indexOf('.') < valStr.indexOf(',')) {
+            valStr = valStr.replace(/\./g, '').replace(',', '.');
+          } else {
+            valStr = valStr.replace(/,/g, '');
+          }
+        } else if (valStr.includes(',')) {
+          valStr = valStr.replace(',', '.');
+        }
+
+        const num = parseFloat(valStr);
+        return isNaN(num) ? null : num;
       });
 
-      // Trace Object
+      // Plotly Trace Configuration
+      let pType = 'scatter';
+      let pMode: string | undefined = 'lines';
+      let pFill: string | undefined = undefined;
+
+      if (t.chartType === 'line') {
+        pType = 'scatter';
+        pMode = 'lines';
+      } else if (t.chartType === 'scatter') {
+        pType = 'scatter';
+        pMode = 'markers';
+      } else if (t.chartType === 'area') {
+        pType = 'scatter';
+        pMode = 'lines';
+        pFill = 'tozeroy';
+      } else if (t.chartType === 'bar') {
+        pType = 'bar';
+        pMode = undefined;
+      }
+
       const traceObj: any = {
         x: xVals,
         y: yVals,
         name: t.column,
         yaxis: t.axis === 'y1' ? 'y' : t.axis,
-        type: t.chartType === 'area' ? 'scatter' : t.chartType,
-        fill: t.chartType === 'area' ? 'tozeroy' : undefined,
-        mode: t.chartType === 'line' || t.chartType === 'area' ? 'lines' : 'markers',
+        type: pType,
+        mode: pMode,
+        fill: pFill,
         line: { color: t.color, width: t.lineWidth, dash: t.lineDash },
         marker: { size: 5, color: t.color }
       };
 
       if (t.chartType === 'bar') {
         traceObj.marker = { color: t.color, opacity: 0.85 };
+        delete traceObj.mode;
+        delete traceObj.line;
       }
 
       traces.push(traceObj);
@@ -947,6 +1005,18 @@ function updateChart() {
         calculatePeakAnnotations(xVals, yVals, state.peakMode, annotations, t.axis === 'y1' ? 'y' : t.axis);
       }
     });
+
+    if (traces.length === 0) {
+      annotations.push({
+        text: 'Nessuna serie attiva.<br>Aggiungi una serie dal pannello "Tracce & Stile Per-Serie".',
+        xref: 'paper',
+        yref: 'paper',
+        x: 0.5,
+        y: 0.5,
+        showarrow: false,
+        font: { size: 13, color: '#64748b' }
+      });
+    }
 
   } else {
     // Default Demo waveform

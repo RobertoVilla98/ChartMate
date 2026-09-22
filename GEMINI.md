@@ -24,12 +24,16 @@ Leggendo questo file all'inizio di una nuova chat, l'agente saprà istantaneamen
    - Permessi Windows granulari (`dialog:allow-open`, `fs:allow-read-file`) per aprire percorsi SharePoint senza restrizioni.
 2. **Controller Grafico Scientifico Client-Side ([`tauri-app/src/main.ts`](file:///c:/Users/rober/Documents/GitHub/ChartMate/tauri-app/src/main.ts))**:
    - Rendering fluido a 60 FPS con Plotly.js.
-   - Gestione assi multi-variabile ($X$, $Y_1$, $Y_2$ overlay destro) e selezione tipologie (Linee, Scatter, Barre, Aree, Box Plot).
+   - **Fix Plotly Data Engine**: Corretto l'uso dei tipi traccia (linee come `scatter` con `mode: 'lines'`, scatter come `markers`, area come `lines` + `tozeroy`, barre come `bar`).
+   - **Gestione Timeframe e Normalizzazione**: Bypass del filtro in modalità *Full* (100% dati plottati) e normalizzatore `toISODate()` per comparazioni cronologiche per *1 Day*, *1 Week*, *1 Month* e *Custom*.
+   - **Parsing Numerico Robusto**: Sanitizzazione completa dei numeri con virgola europea e protezione per valori `0.0`.
+   - **Isolamento CSS Schede**: Stile esplicito `.view-panel` per prevenire collassi del contenitore Plotly.
+   - Gestione assi multi-variabile ($X$, $Y_1, Y_2, Y_3, Y_4$) con titoli, offset e unità di misura indipendenti.
    - **Preset Tipografici WYSIWYG**: *Single Column* ($8.5\text{ cm}$), *Double Column* ($17\text{ cm}$), *Square* ($12\times 12\text{ cm}$).
-   - **Smart Annotations**: Comfort / Target Band integrata ($[20, 26]^\circ\text{C}$).
+   - **Smart Annotations**: Peak & Valley Tracker (Global, Daily, Weekly) e Comfort Band IEQ ($[20, 22]^\circ\text{C}$ inverno, $[24, 26]^\circ\text{C}$ estate, custom).
    - **Export Vector 1-Click**: Esportazione SVG diretta alle dimensioni fisiche esatte.
 3. **Eseguibile Release Windows Generato**:
-   - Compilazione ottimizzata con toolchain GNU: [`ChartMate.exe`](file:///c:/Users/rober/Documents/GitHub/ChartMate/ChartMate.exe) pronto nella cartella principale.
+   - Compilazione ottimizzata con toolchain GNU: [`ChartMate.exe`](file:///c:/Users/rober/Documents/GitHub/ChartMate/ChartMate.exe) pronto nella cartella principale (**24.68 MB**), testato e funzionante.
 
 ---
 

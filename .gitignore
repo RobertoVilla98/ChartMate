@@ -9,3 +9,4 @@ projects.json
 **/target/
 **/node_modules/
 ChartMate.exe
+WebView2Loader.dll

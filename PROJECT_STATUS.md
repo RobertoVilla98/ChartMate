@@ -36,9 +36,14 @@ Per risolvere definitivamente i colli di bottiglia legati alla distribuzione su 
   - **Peak & Valley Tracker Configurabile**: modalità *Disattivato*, *Max & Min Globale* o *Estremi Giornalieri* (picco diurno e minimo notturno con badge e callout precisi).
   - **Comfort / Target Band Stagionale**: preset 1-click tra Inverno ($20 - 22^\circ\text{C}$), Estate ($24 - 26^\circ\text{C}$) o Custom liberamente editabile.
   - **Tipografia Scientifica Paper-Ready**: testi rigorosamente neri ad alto contrasto per paper scientifici, selettore font (*Outfit*, *Arial*, *Times New Roman*, *JetBrains Mono*) e dimensione font configurabile.
-- **Eseguibile Windows Aggiornato**:
-  - Rigenerato [`ChartMate.exe`](file:///c:/Users/rober/Documents/GitHub/ChartMate/ChartMate.exe) (**24.68 MB**) pronto all'avvio con doppio clic, integrato con `WebView2Loader.dll`.
-  - Pulizia automatica `cargo clean` per azzerare lo spazio disco temporaneo.
+- **Fix Risolutivo del Rendering Dati (Plotly Data Engine & Timeframe)**:
+  - **Trace Types Corretti per Plotly.js**: Corretto l'errore semantico per cui le serie di tipo linea venivano configurate con `type: 'line'` (tipo non valido in Plotly). In Plotly le linee sono `type: 'scatter', mode: 'lines'`, gli scatter `type: 'scatter', mode: 'markers'`, le aree `type: 'scatter', mode: 'lines', fill: 'tozeroy'` e le barre `type: 'bar'`.
+  - **Bypass e Normalizzazione Timeframe**: In modalità *Full* (`all`), il filtro per data viene ora completamente bypassato mostrando il 100% dei punti campionati. Creata la funzione `toISODate()` per normalizzare qualsiasi formato data (ISO o europeo `DD/MM/YYYY`) garantendo comparazioni cronologiche accurate per *1 Day*, *1 Week*, *1 Month* e *Custom*.
+  - **Parsing Numerico Robusto**: Sanitizzazione completa dei numeri con virgola europea (`,`) o punto, separatori di migliaia, e correzione del bug per cui il valore `0.0` veniva valutato come `null` (`parseFloat(v) || null`).
+  - **Isolamento CSS delle Schede (`.view-panel`)**: Aggiunte regole CSS esplicite per `.view-panel` (`display: none !important;`) e `.view-panel.active` (`display: flex !important;`) per impedire la sovrapposizione laterale e il collasso geometrico del canvas di Plotly.
+  - **Ingestione Completa dei Dataset**: Rimosso il limite forzato di 100 righe da `read_dataset_sample` in Rust e da `loadFile` in TypeScript (supporto fino a centinaia di migliaia di righe), mantenendo lo slicing a 50 righe solo per la tabella di anteprima HTML raw.
+  - **Eseguibile Windows Aggiornato**: Rigenerato [`ChartMate.exe`](file:///c:/Users/rober/Documents/GitHub/ChartMate/ChartMate.exe) (**24.68 MB**) pronto all'avvio con doppio clic, integrato con `WebView2Loader.dll`.
+  - **Pulizia Disco Eseguita**: Eseguito `cargo clean` con recupero immediato di 1.6 GiB di file intermedi.
 - **Backup Completo Preservato**:
   - Il precedente codebase Python/Dash è stato interamente preservato e versionato sul branch Git `legacy-python-dash`.
 

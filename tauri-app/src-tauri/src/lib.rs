@@ -35,15 +35,20 @@ fn detect_timestamp_metadata(headers: &[String], rows: &[Vec<String>]) -> (Optio
         }
     }
 
-    if ts_col.is_none() && !headers.is_empty() {
-        // Fallback: check first column
-        ts_col = Some(headers[0].clone());
-        ts_idx = Some(0);
-    }
-
     let mut detected_format = None;
 
-    // Check sample values
+    // If no keyword match, inspect first column to see if it actually has date strings
+    if ts_col.is_none() && !headers.is_empty() && !rows.is_empty() {
+        if let Some(val) = rows[0].get(0) {
+            let v = val.trim();
+            if (v.len() >= 8 && (v.contains('-') || v.contains('/'))) && (v.contains(':') || v.len() == 10) {
+                ts_col = Some(headers[0].clone());
+                ts_idx = Some(0);
+            }
+        }
+    }
+
+    // Check sample values for format string
     if let Some(idx) = ts_idx {
         for row in rows.iter().take(10) {
             if let Some(val) = row.get(idx) {
@@ -75,10 +80,13 @@ fn read_dataset_sample(file_path: String, options: Option<ParseOptions>) -> Resu
         decimal: None,
         timestamp_col: None,
         timestamp_format: None,
-        max_rows: Some(100),
+        max_rows: None,
     });
 
-    let limit = opts.max_rows.unwrap_or(100);
+    let limit = match opts.max_rows {
+        Some(m) if m > 0 => m,
+        _ => 500_000,
+    };
 
     // 1. Check if Excel (.xlsx, .xls)
     if file_path.ends_with(".xlsx") || file_path.ends_with(".xls") {
