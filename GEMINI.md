@@ -29,6 +29,7 @@ Leggendo questo file all'inizio di una nuova chat, l'agente saprà istantaneamen
    - **Parsing Numerico Robusto**: Sanitizzazione completa dei numeri con virgola europea e protezione per valori `0.0`.
    - **Isolamento CSS Schede**: Stile esplicito `.view-panel` per prevenire collassi del contenitore Plotly.
    - Gestione assi multi-variabile ($X$, $Y_1, Y_2, Y_3, Y_4$) con titoli, offset e unità di misura indipendenti.
+   - **Trace Styler con Dropdown Dedicati**: Selettore a tendina dedicato per aggiungere colonne Y specifiche (`+ Aggiungi Serie`) e selettore a tendina all'interno di ogni card traccia per cambiare al volo la variabile plottata.
    - **Preset Tipografici WYSIWYG**: *Single Column* ($8.5\text{ cm}$), *Double Column* ($17\text{ cm}$), *Square* ($12\times 12\text{ cm}$).
    - **Smart Annotations**: Peak & Valley Tracker (Global, Daily, Weekly) e Comfort Band IEQ ($[20, 22]^\circ\text{C}$ inverno, $[24, 26]^\circ\text{C}$ estate, custom).
    - **Export Vector 1-Click**: Esportazione SVG diretta alle dimensioni fisiche esatte.

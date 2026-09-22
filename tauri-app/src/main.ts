@@ -298,7 +298,15 @@ function renderApp() {
           <section class="sidebar-section">
             <div class="sidebar-title">
               <span>Tracce & Stile Per-Serie</span>
-              <button class="btn btn-secondary" id="btn-add-trace" style="font-size: 0.72rem; padding: 2px 8px;">
+              <span class="cm-badge cm-badge-emerald">${state.traces.length} Attive</span>
+            </div>
+            
+            <!-- Selettore dedicato per scegliere quale colonna Y aggiungere -->
+            <div style="display: flex; gap: 6px; margin-bottom: 10px;">
+              <select class="form-select" id="sel-new-trace-col" style="flex: 1; font-size: 0.8rem; padding: 4px 8px;">
+                ${renderAddColumnOptions()}
+              </select>
+              <button class="btn btn-primary" id="btn-add-trace" style="font-size: 0.78rem; padding: 4px 10px; white-space: nowrap;">
                 + Aggiungi Serie
               </button>
             </div>
@@ -449,19 +457,33 @@ function renderColumnOptions(selected: string): string {
   return state.dataset.columns.map(c => `<option value="${c}" ${c === selected ? 'selected' : ''}>${c}</option>`).join('');
 }
 
+function renderAddColumnOptions(): string {
+  if (!state.dataset?.columns || state.dataset.columns.length === 0) {
+    return '<option value="">Nessun dataset caricato</option>';
+  }
+  const cols = state.dataset.columns.filter(c => c !== state.selectedX);
+  const displayCols = cols.length > 0 ? cols : state.dataset.columns;
+  return displayCols.map(c => `<option value="${c}">${c}</option>`).join('');
+}
+
 function renderTraceCards(): string {
   if (state.traces.length === 0) {
-    return `<div style="font-size: 0.78rem; color: var(--text-muted); text-align: center; padding: 12px; border: 1px dashed var(--border); border-radius: 6px;">
-      Nessuna serie aggiunta. Clicca "+ Aggiungi Serie" per iniziare.
+    return `<div style="font-size: 0.78rem; color: var(--text-muted); text-align: center; padding: 14px; border: 1px dashed var(--border); border-radius: 6px;">
+      Nessuna serie attiva.<br>Seleziona una colonna sopra e clicca <strong>+ Aggiungi Serie</strong>.
     </div>`;
   }
 
   return state.traces.map((trace, idx) => `
     <div class="trace-card" data-idx="${idx}">
       <div class="trace-header">
-        <span class="trace-name">${trace.column}</span>
-        <button class="btn btn-secondary btn-del-trace" data-idx="${idx}" style="padding: 1px 6px; font-size: 0.7rem; color: var(--rose);">
-          ✕ Rimuovi
+        <div style="display: flex; align-items: center; gap: 6px; flex: 1; margin-right: 8px;">
+          <span style="font-size: 0.74rem; font-weight: 700; color: var(--text-muted);">Y:</span>
+          <select class="trace-select sel-trace-column" data-idx="${idx}" style="font-weight: 600; flex: 1; font-size: 0.82rem; padding: 3px 6px;" title="Cambia variabile di questa serie">
+            ${renderColumnOptions(trace.column)}
+          </select>
+        </div>
+        <button class="btn btn-secondary btn-del-trace" data-idx="${idx}" style="padding: 2px 7px; font-size: 0.7rem; color: var(--rose);" title="Rimuovi serie">
+          ✕
         </button>
       </div>
       
@@ -616,25 +638,48 @@ function attachEventListeners() {
     updateChart();
   });
 
-  // Trace Styler: Add Trace Button
+  // Trace Styler: Add Trace Button with Column Selector
   document.getElementById('btn-add-trace')?.addEventListener('click', () => {
     if (!state.dataset || state.dataset.columns.length === 0) return;
     
-    // Pick the first column that isn't X and isn't already added, or any column
-    const available = state.dataset.columns.filter(c => c !== state.selectedX && !state.traces.some(t => t.column === c));
-    const nextCol = available.length > 0 ? available[0] : state.dataset.columns[1] || state.dataset.columns[0];
+    const selEl = document.getElementById('sel-new-trace-col') as HTMLSelectElement | null;
+    let chosenCol = selEl?.value;
+
+    if (!chosenCol) {
+      const available = state.dataset.columns.filter(c => c !== state.selectedX && !state.traces.some(t => t.column === c));
+      chosenCol = available.length > 0 ? available[0] : state.dataset.columns[1] || state.dataset.columns[0];
+    }
     
     const nextColor = DEFAULT_PALETTE[state.traces.length % DEFAULT_PALETTE.length];
+    const nextAxis: 'y1' | 'y2' | 'y3' | 'y4' = state.traces.length === 0 ? 'y1' : (state.traces.length === 1 ? 'y2' : (state.traces.length === 2 ? 'y3' : (state.traces.length === 3 ? 'y4' : 'y1')));
+    
     state.traces.push({
-      column: nextCol,
-      axis: state.traces.length === 0 ? 'y1' : (state.traces.length === 1 ? 'y2' : 'y1'),
+      column: chosenCol,
+      axis: nextAxis,
       chartType: 'line',
       color: nextColor,
       lineWidth: 2.0,
       lineDash: 'solid'
     });
 
+    if (nextAxis === 'y1' && !state.y1Title) state.y1Title = chosenCol;
+    if (nextAxis === 'y2' && !state.y2Title) state.y2Title = chosenCol;
+    if (nextAxis === 'y3' && !state.y3Title) state.y3Title = chosenCol;
+    if (nextAxis === 'y4' && !state.y4Title) state.y4Title = chosenCol;
+
     renderApp();
+  });
+
+  // Trace Styler: Per-trace Column Change Dropdown
+  document.querySelectorAll('.sel-trace-column').forEach(sel => {
+    sel.addEventListener('change', (e) => {
+      const idx = parseInt((e.target as HTMLElement).getAttribute('data-idx') || '0', 10);
+      const newCol = (e.target as HTMLSelectElement).value;
+      if (state.traces[idx]) {
+        state.traces[idx].column = newCol;
+        renderApp();
+      }
+    });
   });
 
   // Trace Styler: Delete Trace

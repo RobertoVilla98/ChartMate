@@ -31,7 +31,10 @@ Per risolvere definitivamente i colli di bottiglia legati alla distribuzione su 
   - Scheda `1. Data Source & Parser` dedicata unicamente all'ingestione, delimitatori e preview dati raw.
   - Filtro dinamico del Timeframe collocato direttamente nella barra laterale del Canvas (Full, 1 Day, 1 Week, 1 Month, Custom).
 - **Step 2 Completato: Trace Styler Per-Serie, Fino a 4 Assi Y, Annotazioni & Tipografia**:
-  - **Trace Styler Indipendente**: pulsante `+ Aggiungi Serie` per configurare per ciascuna traccia tipo (Linea, Barre, Area, Scatter), stile tratteggio (solid, dash, dot), asse di riferimento e colore dedicato.
+  - **Trace Styler Indipendente con Selezione a Tendina Y**: 
+    - **Menu a Tendina Dedicato per Nuova Serie**: dropdown con elenco completo delle colonne del dataset prima del pulsante `+ Aggiungi Serie`, consentendo di selezionare con precisione la variabile da plottare prima di aggiungerla.
+    - **Selettore a Tendina Per-Card**: all'interno di ogni card traccia creata, l'intestazione contiene ora un selettore a tendina per cambiare istantaneamente la variabile plottata, senza dover eliminare e ricreare la serie.
+    - **Configurazione Avanzata per Traccia**: tipo di grafico (Linea, Barre, Area, Scatter), stile tratteggio (solid, dash, dot), asse di riferimento ($Y_1 - Y_4$) e colore dedicato con color picker.
   - **Supporto Multi-Asse Fino a 4 Assi Y ($Y_1, Y_2, Y_3, Y_4$)**: assi destri scalati con offset geometrico dinamico, titoli e unità di misura personalizzabili.
   - **Peak & Valley Tracker Configurabile**: modalità *Disattivato*, *Max & Min Globale* o *Estremi Giornalieri* (picco diurno e minimo notturno con badge e callout precisi).
   - **Comfort / Target Band Stagionale**: preset 1-click tra Inverno ($20 - 22^\circ\text{C}$), Estate ($24 - 26^\circ\text{C}$) o Custom liberamente editabile.
