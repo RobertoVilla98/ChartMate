@@ -27,6 +27,17 @@ Per risolvere definitivamente i colli di bottiglia legati alla distribuzione su 
   - Esportazione vettoriale SVG ad alta risoluzione (300/600 DPI) con un clic.
   - Smart annotations: Comfort / Target Band integrata per soglie IEQ.
   - Design pulito e professionale proprietario con i font **Outfit** e **JetBrains Mono**.
+- **Step 1 Completato: Ingestione Dati Avanzata & Finestra Temporale**:
+  - Nuova scheda principale `1. Data Ingestion & Timeframe` con controllo completo sul parsing del dataset.
+  - Selettore del delimitatore di colonna (*Auto-Detect*, virgola `,`, punto e virgola `;`, tabulazione `\t`, pipe `|`).
+  - Gestione del formato decimale (punto `.` vs virgola `,` europea).
+  - Riconoscimento ed estrazione automatica dei metadati del Timestamp (colonna data e pattern temporale es. `%Y-%m-%d %H:%M:%S`).
+  - Tabella interattiva di anteprima a scorrimento con prime 100 righe e conteggio record totali.
+  - Filtro dinamico della finestra di analisi: selettori rapidi *Full Range*, *1 Day*, *1 Week*, *1 Month* e *Custom Date Range*.
+  - Transizione fluida e reattiva verso la scheda *Single Canvas Studio*.
+- **Eseguibile Windows Aggiornato**:
+  - Rigenerato [`ChartMate.exe`](file:///c:/Users/rober/Documents/GitHub/ChartMate/ChartMate.exe) (**24.68 MB**) pronto all'avvio con doppio clic, integrato con `WebView2Loader.dll`.
+  - Pulizia automatica `cargo clean` per azzerare lo spazio disco temporaneo.
 - **Backup Completo Preservato**:
   - Il precedente codebase Python/Dash è stato interamente preservato e versionato sul branch Git `legacy-python-dash`.
 
