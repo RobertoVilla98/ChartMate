@@ -6,3 +6,6 @@ projects.json
 *.pyc
 *.pyo
 *.pyd
+**/target/
+**/node_modules/
+ChartMate.exe
