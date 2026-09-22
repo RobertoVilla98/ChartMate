@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" fill="none">
+  <!-- L-shaped XY Coordinate Axes -->
+  <path d="M 5 4 V 27 H 28" stroke="#059669" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Y-axis Arrowhead -->
+  <path d="M 3 7 L 5 4 L 7 7" stroke="#059669" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  
+  <!-- Stylized Waving Mate Character -->
+  <!-- Head -->
+  <circle cx="16.5" cy="10.5" r="2.5" stroke="#059669" stroke-width="2" fill="#ecfdf5"/>
+  <!-- Torso -->
+  <path d="M 16.5 13 V 19.5" stroke="#059669" stroke-width="2" stroke-linecap="round"/>
+  <!-- Legs -->
+  <path d="M 13.5 26.5 L 16.5 19.5 L 19.5 26.5" stroke="#059669" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Left Arm (stable) -->
+  <path d="M 16.5 15 L 11.5 18" stroke="#059669" stroke-width="2" stroke-linecap="round"/>
+  <!-- Right Arm (Waving Hello! 👋) -->
+  <path d="M 16.5 15 L 21 13.5 L 23.5 8.5" stroke="#059669" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Greeting Sparkle / Data Point -->
+  <circle cx="25.5" cy="7.5" r="1.2" fill="#10b981"/>
+</svg>

@@ -1,14 +1,41 @@
 # ChartMate 📊
 
-**ChartMate** is a lightweight desktop utility built with Python, Dash, and Plotly, designed for loading, managing, and visualizing datasets. It features a standalone window interface thanks to `pywebview` and supports project-based data management.
+**ChartMate** is a high-speed, publication-ready scientific figure studio built with **Python, Dash, Polars, and Plotly**. Designed for researchers, engineers, and data scientists, it streamlines the generation of journal-quality single-panel and multi-panel figures without requiring complex scripting.
+
+---
 
 ## 🚀 Key Features
 
-- **Standalone Desktop App**: Runs in its own window without needing a browser.
-- **Project Management**: Save file paths and CSV configurations as projects.
-- **Canvas System**: Create and save multiple visualization "canvases" per project.
-- **Dynamic Plotting**: High-level customization for graphs (axes, legends, grids, etc.).
-- **Data Persistence**: Automatic saving of project and canvas configurations in JSON.
+* **🎨 Velth Light Mode Design System**: Clean, modern interface with crisp typography (Outfit & JetBrains Mono) and high-contrast scientific palettes.
+* **🏷️ Smart Labelling & Annotations**:
+  * *Peak & Valley Tracker*: Automatic Global Max/Min callouts and Daily Extrema per calendar day.
+  * *Threshold Lines & Comfort Bands*: Horizontal reference lines and shaded target ranges.
+  * *Statistical Indicators*: Mean ($\mu$), Median ($M$), and Linear OLS Trendline with $R^2$.
+  * *Event Shading*: Vertical time-window highlighting for critical events or faults.
+* **📊 Universal Scientific Chart Suite**:
+  * 📈 **Line** (Continuous & Gap management)
+  * ⚬ **Scatter** (High-precision markers)
+  * 📊 **Bar & Area**
+  * 📦 **Box Plot** (Medians, IQR, and Jitter Points)
+  * 🎻 **Violin Plot** (Kernel Density Estimations)
+  * 📊 **Grouped Bar with Error Bars** ($\mu \pm \sigma$)
+  * 🔥 **Correlation Matrix Heatmap** (Pearson $r \in [-1, 1]$ with cell text)
+  * 📈 **Histogram & Frequency Distribution**
+  * 🕸️ **Radar / Spider Plot** (Multi-metric evaluation)
+* **📐 1-Click Publication Presets**:
+  * *Single Column* ($8.5 \times 6.5\text{ cm}$)
+  * *Double Column* ($17.0 \times 9.5\text{ cm}$)
+  * *Square* ($12.0 \times 12.0\text{ cm}$, Ratio 1:1)
+  * *Presentation 16:9* ($24.0 \times 13.5\text{ cm}$)
+  * *Custom Dimensions* & True WYSIWYG responsive sizing.
+* **🔲 Journal-Ready MultiPlot Studio**:
+  * *Topology Presets*: Vertical Time-Series Stack ($3\times 1$, $2\times 1$), Matrix Grid ($2\times 2$), Side-by-Side ($1\times 2$).
+  * *Academic Auto-Lettering*: Automatic **`(a)`**, **`(b)`**, **`(c)`**, **`(d)`** panel badges.
+  * *Smart Dynamic Spacing*: Zero text or axis collision.
+* **⚡ Ultra-Fast Polars Engine**: Instant ingestion and filtering of massive time-series datasets.
+* **💾 Vector & Raster Export**: Direct download in **SVG**, **PDF**, **PNG**, and **JPEG** with custom DPI ($96$, $150$, $300$, $600\text{ DPI}$).
+
+---
 
 ## 🛠️ Installation
 
@@ -26,46 +53,30 @@
 
 3. **Install dependencies**:
    ```powershell
-   pip install -r Requirenents.txt
+   pip install -r requirements.txt
    ```
+
+---
 
 ## 📖 Usage
 
-### Running the Application
-To start the app in standalone mode:
+### Running the Studio
 ```powershell
 python app.py
 ```
+ChartMate will automatically open in your default browser at `http://127.0.0.1:8050/`.
 
-### Building the Executable
-You can package ChartMate as a single-file executable using the provided build script:
+### Building Standalone Desktop Executable
 ```powershell
 python build_exe.py
 ```
-The executable will be generated in the `dist/` folder.
-
-## 📂 Project Structure
-
-- `app.py`: Main entry point (Dash server + pywebview window).
-- `pages/`: Contains the UI layouts for different views (Home, Canvas).
-- `utils/`: Core logic and helper modules:
-  - `storage.py`: Handles project and canvas persistence (JSON).
-  - `data_handler.py`: CSV loading and preprocessing.
-- `assets/`: Custom CSS and static files.
-- `build_exe.py`: Script for generating the standalone executable.
-- `Requirenents.txt`: List of Python dependencies.
-
-## 🤝 Contributing
-
-1. Fork the repository.
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`).
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`).
-4. Push to the branch (`git push origin feature/AmazingFeature`).
-5. Open a Pull Request.
-
-## 📄 License
-
-Distributed under the GNU License. See `LICENSE` for more information.
+The standalone executable will be generated in `dist/`.
 
 ---
-*Created with ❤️ for lightweight data visualization.*
+
+## 📁 Project Architecture & Tracking
+
+For detailed architecture, recent advancements, and future roadmap, refer to:
+* [`PROJECT_STATUS.md`](file:///c:/Users/rober/Documents/GitHub/ChartMate/PROJECT_STATUS.md) — Official status, solved decisions, and future implementation roadmap.
+* [`ChartMate_Structure.txt`](file:///c:/Users/rober/Documents/GitHub/ChartMate/ChartMate_Structure.txt) — Modular file tree.
+* [`docs/PROJECT_OVERVIEW.md`](file:///c:/Users/rober/Documents/GitHub/ChartMate/docs/PROJECT_OVERVIEW.md) — Architectural specification.

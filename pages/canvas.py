@@ -1,121 +1,195 @@
 import dash
 from dash import html, dcc, Input, Output, State, callback
 import dash_bootstrap_components as dbc
-import plotly.express as px
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-from utils.storage import load_projects, save_canvas, delete_canvas
-from utils.data_handler import load_csv_data
 import polars as pl
 import os
 import datetime
 
-dash.register_page(__name__, path='/canvas')
+from components.export_toolbar import render_export_toolbar, render_viewport_controls
+from components.trace_styler import render_trace_controls
+from components.axis_panel import render_global_controls, render_axis_accordion, render_timeframe_accordion
+from components.annotation_panel import render_annotation_accordion
+from utils.chart_engine import build_single_chart_figure
+from utils.storage import load_projects, save_canvas, delete_canvas
+from utils.data_handler import load_data_file
+
+dash.register_page(__name__, path='/canvas', name="Canvas")
 
 layout = html.Div([
-    # Top Row: Project Selection/Save & Controls
+    # Top Row: Project Selection & Chart Controls
     dbc.Row([
-        # Left Side (width=3)
+        # Left Side (width=3): Project & Canvas Selector
         dbc.Col([
             dbc.Card([
-                dbc.CardHeader("Project Selection & Saving"),
+                dbc.CardHeader([
+                    html.I(className="bi bi-folder-symlink me-2 text-emerald"),
+                    "Project & Canvas View"
+                ]),
                 dbc.CardBody([
-                    html.Label("Project", className="small fw-bold"),
-                    dcc.Dropdown(id='project-selector', placeholder="Select Project", className="mb-2"),
-                    html.Label("Recall Canvas", className="small fw-bold"),
+                    html.Label("Active Project", className="small fw-bold text-secondary mb-1"),
+                    dcc.Dropdown(id='project-selector', placeholder="Select Project...", className="mb-2 small font-mono"),
+                    
+                    html.Label("Recall Canvas", className="small fw-bold text-secondary mb-1"),
                     dbc.Row([
-                        dbc.Col(dcc.Dropdown(id='canvas-selector', placeholder="Select Canvas"), width=8, className="pe-1"),
-                        dbc.Col(dbc.Button("Delete", id='delete-canvas-btn', color="danger", size="sm", className="w-100"), width=4, className="ps-0")
+                        dbc.Col(dcc.Dropdown(id='saved-canvas-selector', placeholder="Select Canvas...", className="small font-mono"), width=8, className="pe-1"),
+                        dbc.Col(dbc.Button([html.I(className="bi bi-trash3")], id='delete-canvas-btn', color="danger", size="sm", className="w-100"), width=4, className="ps-0")
                     ], className="mb-2"),
+                    
                     dcc.ConfirmDialog(
                         id='delete-confirm-dialog',
-                        message='Are you sure you want to delete this canvas?',
+                        message='Are you sure you want to permanently delete this saved canvas?',
                     ),
-                    html.Hr(),
-                    html.Label("Save Configurations", className="small fw-bold"),
-                    dbc.Input(id='canvas-name', placeholder="Canvas Name...", size="sm", className="mb-2"),
+                    html.Hr(className="border-subtle my-2"),
+                    
+                    html.Label("Save / Update Canvas", className="small fw-bold text-secondary mb-1"),
+                    dbc.Input(id='canvas-name', placeholder="Canvas Name (e.g. CO2_Analysis)...", size="sm", className="mb-2 font-mono"),
                     dbc.Row([
-                        dbc.Col(dbc.Button("Save New", id='save-canvas-btn', color="success", size="sm", className="w-100"), width=6, className="pe-1"),
-                        dbc.Col(dbc.Button("Update", id='update-canvas-btn', color="primary", size="sm", className="w-100"), width=6, className="ps-1")
+                        dbc.Col(dbc.Button([html.I(className="bi bi-plus-lg me-1"), "Save New"], id='save-canvas-btn', color="success", size="sm", className="w-100"), width=6, className="pe-1"),
+                        dbc.Col(dbc.Button([html.I(className="bi bi-arrow-repeat me-1"), "Update"], id='update-canvas-btn', color="primary", size="sm", className="w-100"), width=6, className="ps-1")
                     ]),
-                    html.Div(id='save-status-msg', className="text-muted small mt-2 text-center")
+                    html.Div(id='save-status-msg', className="text-muted small mt-2 text-center font-mono")
                 ])
             ], className="mb-3")
-        ], width=3),
+        ], width=12, lg=3),
         
-        # Right Side (width=9)
+        # Right Side (width=9): Chart Controls
         dbc.Col([
             dbc.Card([
-                dbc.CardHeader("Chart Controls"),
+                dbc.CardHeader([
+                    html.I(className="bi bi-sliders2 me-2 text-emerald"),
+                    "Variables, Layout & Axis Properties"
+                ]),
                 dbc.CardBody([
                     html.Div(id='plot-controls')
-                ], style={'maxHeight': '45vh', 'overflowY': 'auto'})
-            ])
-        ], width=9)
+                ], style={'maxHeight': '48vh', 'overflowY': 'auto'})
+            ], className="mb-3")
+        ], width=12, lg=9)
     ], className="mb-3"),
     
-    # Middle Row: Trace Formatting (Full Width)
+    # Middle Row: Per-Trace Series Styling & Smart Annotations (Accordion)
     dbc.Row([
         dbc.Col([
             dbc.Accordion([
-                dbc.AccordionItem(html.Div(id='trace-controls'), title="Trace Formatting (Per-Line Settings)"),
-            ], start_collapsed=True, className="mb-3")
+                dbc.AccordionItem(
+                    html.Div(id='trace-controls'),
+                    title="🎨 Per-Trace Series Styling (Colors, Line Styles, Opacity & Ordering)",
+                    item_id="trace-settings"
+                ),
+                render_annotation_accordion(),
+            ], start_collapsed=True, className="mb-3", always_open=True)
         ], width=12)
     ], className="mb-3"),
     
-    # Bottom Row: Graph (Full Width)
+    # Bottom Row: Canvas Viewport & Export Studio
     dbc.Row([
         dbc.Col([
             dbc.Card([
-                dbc.CardBody([
-                    dbc.Row([
-                        dbc.Col(html.Label("Format", className="small fw-bold"), width="auto"),
-                        dbc.Col(dbc.Select(id='dl-format', options=[{'label':'PNG','value':'png'}, {'label':'SVG','value':'svg'}, {'label':'JPEG','value':'jpeg'}], value='png', size="sm"), width="auto"),
-                        dbc.Col(html.Label("Width (cm)", className="small fw-bold"), width="auto"),
-                        dbc.Col(dbc.Input(id='dl-width', type='number', value=20, size="sm", style={'width': '80px'}), width="auto"),
-                        dbc.Col(html.Label("Height (cm)", className="small fw-bold"), width="auto"),
-                        dbc.Col(dbc.Input(id='dl-height', type='number', value=15, size="sm", style={'width': '80px'}), width="auto"),
-                        dbc.Col(html.Label("DPI", className="small fw-bold"), width="auto"),
-                        dbc.Col(dbc.Select(id='dl-dpi', options=[{'label':'96','value':96}, {'label':'150','value':150}, {'label':'300','value':300}, {'label':'600','value':600}], value=300, size="sm", style={'width': '80px'}), width="auto"),
-                        dbc.Col(dbc.Button("Download High-Res Image", id='dl-btn', color="success", size="sm", className="ms-auto"), width="auto")
-                    ], className="align-items-center mb-3"),
+                dbc.CardHeader([
                     html.Div([
-                        dcc.Graph(id='main-graph')
-                    ], style={'overflow': 'auto', 'maxHeight': '75vh', 'borderRadius': '10px', 'border': '1px dashed #ccc'})
+                        html.Div([
+                            html.I(className="bi bi-display me-2 text-emerald"),
+                            html.Span("Interactive Canvas & Export Studio", className="fw-bold")
+                        ], className="d-flex align-items-center"),
+                        render_viewport_controls(prefix="viewport")
+                    ], className="d-flex flex-wrap justify-content-between align-items-center w-100")
+                ]),
+                dbc.CardBody([
+                    render_export_toolbar(prefix="dl", default_preset="double_col"),
+                    html.Div([
+                        dcc.Graph(
+                            id='main-graph',
+                            config={'displaylogo': False, 'responsive': True, 'modeBarButtonsToRemove': ['lasso2d', 'select2d']}
+                        )
+                    ], id='main-graph-wrapper', className="graph-preview-container")
                 ])
             ])
         ], width=12)
     ]),
     
     html.Div(id='canvas-saved-store', style={'display': 'none'}, children=0),
-    html.Div(id='dl-dummy-output'),
+    html.Div(id='dl-dummy-output', style={'display': 'none'}),
 
     dbc.Modal(
         [
             dbc.ModalHeader(dbc.ModalTitle("Update / Overwrite Canvas?")),
             dbc.ModalBody(id="overwrite-modal-body", children="Are you sure you want to update/overwrite this canvas?"),
             dbc.ModalFooter([
-                dbc.Button("Cancel", id="cancel-overwrite-canvas", className="ms-auto", n_clicks=0),
+                dbc.Button("Cancel", id="cancel-overwrite-canvas", className="ms-auto", n_clicks=0, color="secondary"),
                 dbc.Button("Confirm", id="confirm-overwrite-canvas", color="primary", n_clicks=0),
             ]),
         ],
         id="overwrite-modal-canvas",
         is_open=False,
     ),
+], className="py-2")
 
-], className="container-fluid p-4")
+# Publication Preset Callback
+@callback(
+    Output('dl-width', 'value'),
+    Output('dl-height', 'value'),
+    Output('global-font-size', 'value', allow_duplicate=True),
+    Output('axis-title-size', 'value', allow_duplicate=True),
+    Output('axis-tick-size', 'value', allow_duplicate=True),
+    Output('legend-font-size', 'value', allow_duplicate=True),
+    Input('dl-preset', 'value'),
+    prevent_initial_call=True
+)
+def apply_canvas_preset(preset_key):
+    from components.export_toolbar import PUBLICATION_PRESETS
+    if preset_key not in PUBLICATION_PRESETS or preset_key == 'custom':
+        return [dash.no_update] * 6
+    p = PUBLICATION_PRESETS[preset_key]
+    return p['width'], p['height'], p['fs_glob'], p['fs_tit'], p['fs_tick'], p['fs_leg']
 
+# Proportional Aspect Ratio Sizing & Badge Callback
 @callback(
     Output('main-graph', 'style'),
+    Output('main-graph-wrapper', 'style'),
+    Output('viewport-ratio-badge', 'children'),
     Input('dl-width', 'value'),
     Input('dl-height', 'value')
 )
 def update_canvas_preview_size(w_cm, h_cm):
-    if not w_cm or not h_cm:
-        return {'height': '65vh'}
-    w_px = (w_cm / 2.54) * 96
-    h_px = (h_cm / 2.54) * 96
-    return {'width': f'{w_px}px', 'height': f'{h_px}px', 'margin': '0 auto'}
+    if not w_cm or not h_cm or float(w_cm) <= 0 or float(h_cm) <= 0:
+        w_cm, h_cm = 17.0, 9.5
+    
+    w_cm = float(w_cm)
+    h_cm = float(h_cm)
+    ratio = w_cm / h_cm
+    
+    # Calculate responsive proportional dimensions (Large Screen Multiplier)
+    calc_w = 1150
+    calc_h = int(calc_w / ratio)
+    
+    if calc_h > 680:
+        calc_h = 680
+        calc_w = int(calc_h * ratio)
+    elif calc_h < 420:
+        calc_h = 420
+        calc_w = min(int(calc_h * ratio), 1200)
+        
+    badge_txt = f"{w_cm:.1f} × {h_cm:.1f} cm (Ratio {ratio:.2f}:1)"
+    
+    wrapper_style = {
+        'display': 'flex',
+        'justifyContent': 'center',
+        'alignItems': 'center',
+        'width': '100%',
+        'minHeight': f'{calc_h + 24}px',
+        'padding': '12px',
+        'transition': 'all 0.25s ease'
+    }
+    
+    graph_style = {
+        'width': f'{calc_w}px',
+        'maxWidth': '100%',
+        'height': f'{calc_h}px',
+        'margin': '0 auto',
+        'transition': 'all 0.25s ease'
+    }
+    
+    return graph_style, wrapper_style, badge_txt
 
 @callback(
     Output('project-selector', 'options'),
@@ -132,10 +206,8 @@ def update_project_options(_):
     Input('canvas-saved-store', 'data')
 )
 def update_canvas_options(project_name, save_data):
-    if not project_name:
-        return [], None
-    projects = load_projects()
-    canvases = projects.get(project_name, {}).get('canvases', {})
+    if not project_name: return [], None
+    canvases = load_projects().get(project_name, {}).get('canvases', {})
     return [{'label': k, 'value': k} for k in canvases.keys()], None
 
 @callback(
@@ -145,184 +217,37 @@ def update_canvas_options(project_name, save_data):
 )
 def update_main_controls(project_name):
     if not project_name:
-        return "Please select a project.", ""
+        return html.Div("Please select a project to configure chart axes and properties.", className="text-muted small p-3"), ""
     
     projects = load_projects()
     if project_name not in projects:
-        return "Project not found.", ""
+        return html.Div("Project not found.", className="text-danger small"), ""
     
     config = projects[project_name]
     file_path = config['file_path']
-    
     if not os.path.exists(file_path):
-        return f"File not found: {file_path}. Check Home screen.", ""
+        return html.Div(f"Dataset file not found at: {file_path}", className="text-danger small"), ""
     
-    df = load_csv_data(
+    df = load_data_file(
         file_path, sep=config.get('sep', ','), decimal=config.get('decimal', '.'),
         timestamp_col=config.get('timestamp_col'), timestamp_format=config.get('timestamp_format')
     )
-    
     if df is None:
-        return "Error loading data.", ""
+        return html.Div("Error loading dataset.", className="text-danger small"), ""
     
     cols = df.columns
-    
-    # Default Y choices
-    y = [cols[1]] if len(cols) > 1 else [cols[0]]
-    y2 = []
-    y3 = []
+    ts_col = config.get('timestamp_col')
+    default_x = ts_col if ts_col and ts_col in cols else cols[0]
+    remaining_cols = [c for c in cols if c != default_x]
+    y = [remaining_cols[0]] if remaining_cols else [cols[0]]
 
-    # MAIN CHART CONTROLS
-    controls = html.Div([
-        dbc.Row([
-            dbc.Col([
-                html.Label("X-Axis", className="small fw-bold"),
-                dcc.Dropdown(id='x-axis', options=[{'label': i, 'value': i} for i in cols], value=cols[0])
-            ], width=3),
-            dbc.Col([
-                html.Label("Y-Axis (Primary)", className="small fw-bold"),
-                dcc.Dropdown(id='y-axis', options=[{'label': i, 'value': i} for i in cols], value=y, multi=True)
-            ], width=3),
-            dbc.Col([
-                html.Label("Y-Axis (Secondary)", className="small fw-bold"),
-                dcc.Dropdown(id='secondary-y-axis', options=[{'label': i, 'value': i} for i in cols], value=y2, multi=True)
-            ], width=3),
-            dbc.Col([
-                html.Label("Y-Axis (Tertiary)", className="small fw-bold"),
-                dcc.Dropdown(id='tertiary-y-axis', options=[{'label': i, 'value': i} for i in cols], value=y3, multi=True)
-            ], width=3),
-        ], className="mb-2"),
-        
-        dbc.Row([
-            dbc.Col([
-                html.Label("Global Chart Type", className="small fw-bold"),
-                dcc.Dropdown(id='chart-type', options=[
-                    {'label': 'Scatter', 'value': 'scatter'}, {'label': 'Line', 'value': 'line'},
-                    {'label': 'Bar', 'value': 'bar'}, {'label': 'Area', 'value': 'area'}
-                ], value='line'),
-            ], width=3),
-            dbc.Col([
-                html.Label("Legend Position", className="small fw-bold"),
-                dcc.Dropdown(id='legend-pos', options=[
-                    {'label': 'Right', 'value': 'right'}, {'label': 'Top', 'value': 'top'},
-                    {'label': 'Bottom', 'value': 'bottom'}, {'label': 'Hidden', 'value': 'none'}
-                ], value='top'),
-            ], width=3),
-            dbc.Col([
-                html.Label("Global Font", className="small fw-bold"),
-                dcc.Dropdown(id='global-font', options=[
-                    {'label': 'Arial', 'value': 'Arial'}, {'label': 'Roboto', 'value': 'Roboto'},
-                    {'label': 'Times New Roman', 'value': 'Times New Roman'},
-                    {'label': 'Courier New', 'value': 'Courier New'}, {'label': 'Verdana', 'value': 'Verdana'},
-                    {'label': 'Georgia', 'value': 'Georgia'}, {'label': 'Comic Sans MS', 'value': 'Comic Sans MS'},
-                    {'label': 'Trebuchet MS', 'value': 'Trebuchet MS'}, {'label': 'Impact', 'value': 'Impact'}
-                ], value='Arial', clearable=False),
-            ], width=3),
-            dbc.Col([
-                html.Label("Options", className="small fw-bold"), html.Br(),
-                dbc.Checkbox(id='connect-gaps', label="Connect Gaps", value=False)
-            ], width=3)
-        ]),
-        
-        dbc.Row([
-            dbc.Col([
-                html.Label("Global Font Size", className="small fw-bold"),
-                dbc.Input(id='global-font-size', type='number', value=12, size="sm")
-            ], width=3),
-            dbc.Col([
-                html.Label("Legend Font Size", className="small fw-bold"),
-                dbc.Input(id='legend-font-size', type='number', value=12, size="sm")
-            ], width=3),
-            dbc.Col([
-                html.Label("Axis Title Size", className="small fw-bold"),
-                dbc.Input(id='axis-title-size', type='number', value=14, size="sm")
-            ], width=3),
-            dbc.Col([
-                html.Label("Axis Tick Size", className="small fw-bold"),
-                dbc.Input(id='axis-tick-size', type='number', value=12, size="sm")
-            ], width=3),
-        ], className="mb-2"),
-        
-        html.Hr(),
+    return html.Div([
+        render_global_controls(cols, default_x, y, [], []),
         dbc.Accordion([
-            dbc.AccordionItem([
-                dbc.Row([
-                    dbc.Col(html.Strong("Axis", className="small"), width=1),
-                    dbc.Col(html.Strong("Show", className="small"), width=1, className="text-center"),
-                    dbc.Col(html.Strong("Labels", className="small"), width=4),
-                    dbc.Col(html.Strong("Grid", className="small"), width=2, className="text-center"),
-                    dbc.Col(html.Strong("Min", className="small"), width=2),
-                    dbc.Col(html.Strong("Max", className="small"), width=2)
-                ], className="mb-2 border-bottom pb-1"),
-                # X-Axis Row
-                dbc.Row([
-                    dbc.Col(html.Label("X", className="small fw-bold pt-1"), width=1),
-                    dbc.Col(dbc.Checklist(options=[{"label": "", "value": "1"}], value=["1"], id="show-x-label", switch=True), width=1, className="d-flex justify-content-center"),
-                    dbc.Col(dbc.Input(id='x-axis-label', placeholder="Custom X Label", size="sm"), width=4),
-                    dbc.Col(dbc.Checklist(options=[{"label": "", "value": "x"}], value=["x"], id="grid-x-switch", switch=True), width=2, className="d-flex justify-content-center"),
-                    dbc.Col(dbc.Input(id='x-axis-min', placeholder="Auto", size="sm", type="number"), width=2),
-                    dbc.Col(dbc.Input(id='x-axis-max', placeholder="Auto", size="sm", type="number"), width=2),
-                ], className="mb-2 align-items-center"),
-                # Y1-Axis Row
-                dbc.Row([
-                    dbc.Col(html.Label("Y1", className="small fw-bold pt-1", title="Primary Y Axis"), width=1),
-                    dbc.Col(dbc.Checklist(options=[{"label": "", "value": "1"}], value=["1"], id="show-y-label", switch=True), width=1, className="d-flex justify-content-center"),
-                    dbc.Col(dbc.Input(id='y-axis-label', placeholder="Custom Y1 Label", size="sm"), width=4),
-                    dbc.Col(dbc.Checklist(options=[{"label": "", "value": "y"}], value=["y"], id="grid-y-switch", switch=True), width=2, className="d-flex justify-content-center"),
-                    dbc.Col(dbc.Input(id='y-axis-min', placeholder="Auto", size="sm", type="number"), width=2),
-                    dbc.Col(dbc.Input(id='y-axis-max', placeholder="Auto", size="sm", type="number"), width=2),
-                ], className="mb-2 align-items-center"),
-                # Y2-Axis Row
-                dbc.Row([
-                    dbc.Col(html.Label("Y2", className="small fw-bold pt-1", title="Secondary Y Axis"), width=1),
-                    dbc.Col(dbc.Checklist(options=[{"label": "", "value": "1"}], value=["1"], id="show-y2-label", switch=True), width=1, className="d-flex justify-content-center"),
-                    dbc.Col(dbc.Input(id='y2-axis-label', placeholder="Custom Y2 Label", size="sm"), width=4),
-                    dbc.Col(dbc.Checklist(options=[{"label": "", "value": "y2"}], value=[], id="grid-y2-switch", switch=True), width=2, className="d-flex justify-content-center"),
-                    dbc.Col(dbc.Input(id='y2-axis-min', placeholder="Auto", size="sm", type="number"), width=2),
-                    dbc.Col(dbc.Input(id='y2-axis-max', placeholder="Auto", size="sm", type="number"), width=2),
-                ], className="mb-2 align-items-center"),
-                # Y3-Axis Row
-                dbc.Row([
-                    dbc.Col(html.Label("Y3", className="small fw-bold pt-1", title="Tertiary Y Axis"), width=1),
-                    dbc.Col(dbc.Checklist(options=[{"label": "", "value": "1"}], value=["1"], id="show-y3-label", switch=True), width=1, className="d-flex justify-content-center"),
-                    dbc.Col(dbc.Input(id='y3-axis-label', placeholder="Custom Y3 Label", size="sm"), width=4),
-                    dbc.Col(dbc.Checklist(options=[{"label": "", "value": "y3"}], value=[], id="grid-y3-switch", switch=True), width=2, className="d-flex justify-content-center"),
-                    dbc.Col(dbc.Input(id='y3-axis-min', placeholder="Auto", size="sm", type="number"), width=2),
-                    dbc.Col(dbc.Input(id='y3-axis-max', placeholder="Auto", size="sm", type="number"), width=2),
-                ], className="mb-2 align-items-center"),
-                # Hidden old grid-switches for backward compatibility if needed, or we just remove it and merge them in callbacks
-                html.Div(id='grid-switches', style={'display': 'none'})
-            ], title="Axes Configuration"),
-            
-            dbc.AccordionItem([
-                dbc.Row([
-                    dbc.Col([
-                        html.Label("Timeframe Preset", className="small fw-bold"),
-                        dcc.Dropdown(id='timeframe-dropdown', options=[
-                            {'label': 'All Time', 'value': 'all_time'},
-                            {'label': 'Daily', 'value': 'daily'},
-                            {'label': 'Weekly', 'value': 'weekly'}, 
-                            {'label': 'Monthly', 'value': 'monthly'},
-                            {'label': 'Yearly', 'value': 'yearly'},
-                            {'label': 'Custom Range', 'value': 'custom'}
-                        ], value='all_time')
-                    ], width=6),
-                    dbc.Col([
-                        html.Div(id='reference-date-div', children=[
-                            html.Label("Reference Date", className="small fw-bold"), html.Br(),
-                            dcc.DatePickerSingle(id='reference-date-picker', display_format='YYYY-MM-DD', first_day_of_week=1)
-                        ])
-                    ], width=6)
-                ]),
-                html.Div(id='date-picker-div', children=[
-                    html.Label("Custom Range", className="small fw-bold mt-2"), html.Br(),
-                    dcc.DatePickerRange(id='date-picker-range', display_format='YYYY-MM-DD', first_day_of_week=1)
-                ], style={'display': 'none'})
-            ], title="Timeframe")
+            render_axis_accordion(),
+            render_timeframe_accordion()
         ], start_collapsed=True)
-    ])
-    
-    return controls, ""
+    ]), ""
 
 @callback(
     Output('trace-controls', 'children'),
@@ -341,7 +266,7 @@ def update_main_controls(project_name):
     State({'type': 'trace-order', 'index': dash.ALL}, 'value'),
     prevent_initial_call=True
 )
-def update_trace_controls(y, y2, y3, project_name, canvas_name, t_ids, t_names, t_cols, t_types, t_styles, t_thick, t_opac, t_order):
+def update_trace_controls_cb(y, y2, y3, project_name, canvas_name, t_ids, t_names, t_cols, t_types, t_styles, t_thick, t_opac, t_order):
     if not project_name: return "Please select a project."
     projects = load_projects()
     if project_name not in projects: return "Project not found."
@@ -350,27 +275,15 @@ def update_trace_controls(y, y2, y3, project_name, canvas_name, t_ids, t_names, 
     file_path = config['file_path']
     if not os.path.exists(file_path): return ""
     
-    df = load_csv_data(
-        file_path, sep=config.get('sep', ','), decimal=config.get('decimal', '.'),
-        timestamp_col=config.get('timestamp_col'), timestamp_format=config.get('timestamp_format')
-    )
-    if df is None: return "Error loading data."
+    df = load_data_file(file_path, sep=config.get('sep', ','), decimal=config.get('decimal', '.'))
+    if df is None: return "Error loading dataset."
     
     cols = df.columns
-
-    # TRACE CONTROLS GENERATION (Filtered by selected Y axes)
     selected_traces = []
-    if y:
-        selected_traces.extend(y if isinstance(y, list) else [y])
-    if y2:
-        selected_traces.extend(y2 if isinstance(y2, list) else [y2])
-    if y3:
-        selected_traces.extend(y3 if isinstance(y3, list) else [y3])
-    
-    # Remove duplicates while preserving order
-    selected_traces = list(dict.fromkeys(selected_traces))
-    # Filter only valid columns
-    selected_traces = [col for col in selected_traces if col in cols]
+    if y: selected_traces.extend(y if isinstance(y, list) else [y])
+    if y2: selected_traces.extend(y2 if isinstance(y2, list) else [y2])
+    if y3: selected_traces.extend(y3 if isinstance(y3, list) else [y3])
+    selected_traces = list(dict.fromkeys([c for c in selected_traces if c in cols]))
 
     dom_state = {}
     if t_ids:
@@ -386,62 +299,8 @@ def update_trace_controls(y, y2, y3, project_name, canvas_name, t_ids, t_names, 
                 'order': t_order[idx] if t_order and idx < len(t_order) else None
             }
             
-    saved_state = {}
-    if canvas_name and canvas_name in config.get('canvases', {}):
-        saved_state = config['canvases'][canvas_name].get('tc', {})
-
-    trace_rows = []
-    for i, col in enumerate(selected_traces):
-        val_name = dom_state.get(col, {}).get('name') or saved_state.get(col, {}).get('name') or col
-        val_color = dom_state.get(col, {}).get('color') or saved_state.get(col, {}).get('color')
-        val_type = dom_state.get(col, {}).get('type') or saved_state.get(col, {}).get('type') or 'global'
-        val_style = dom_state.get(col, {}).get('style') or saved_state.get(col, {}).get('style') or 'solid'
-        
-        val_width = dom_state.get(col, {}).get('width')
-        if val_width is None: val_width = saved_state.get(col, {}).get('width', 2)
-            
-        val_opac = dom_state.get(col, {}).get('opacity')
-        if val_opac is None: val_opac = saved_state.get(col, {}).get('opacity', 1.0)
-            
-        val_order = dom_state.get(col, {}).get('order') or saved_state.get(col, {}).get('order') or (i + 1)
-
-        row = html.Div([
-            dbc.Row(dbc.Col(html.Strong(col, style={'fontSize': '0.9rem', 'wordBreak': 'break-all'})), className="mb-1"),
-            dbc.Row([
-                dbc.Col(html.Label("Name", style={'fontSize': '0.75rem'}), width=1, className="pe-0"),
-                dbc.Col(dbc.Input(type="text", id={'type': 'trace-name', 'index': col}, value=val_name, size="sm"), width=3),
-                dbc.Col(html.Label("Color", style={'fontSize': '0.75rem'}), width=1, className="pe-0"),
-                dbc.Col(dbc.Input(type="color", id={'type': 'trace-color', 'index': col}, value=val_color, size="sm", style={'height': '30px', 'padding': '0px'}), width=1),
-                dbc.Col(html.Label("Type", style={'fontSize': '0.75rem'}), width=1, className="pe-0"),
-                dbc.Col(dcc.Dropdown(
-                    id={'type': 'trace-chart-type', 'index': col},
-                    options=[{'label': 'Global', 'value': 'global'}, {'label': 'Line', 'value': 'line'},
-                             {'label': 'Bar', 'value': 'bar'}, {'label': 'Scatter', 'value': 'scatter'}, {'label': 'Area', 'value': 'area'}],
-                    value=val_type, clearable=False, className="small"
-                ), width=2),
-                dbc.Col(html.Label("Style", style={'fontSize': '0.75rem'}), width=1, className="pe-0"),
-                dbc.Col(dcc.Dropdown(
-                    id={'type': 'trace-line-style', 'index': col},
-                    options=[{'label': 'Solid', 'value': 'solid'}, {'label': 'Dash', 'value': 'dash'},
-                             {'label': 'Dot', 'value': 'dot'}, {'label': 'Dash-Dot', 'value': 'dashdot'}],
-                    value=val_style, clearable=False, className="small"
-                ), width=2),
-            ], className="mb-2 align-items-center"),
-            dbc.Row([
-                dbc.Col(html.Label("Width", style={'fontSize': '0.75rem'}), width=1, className="pe-0"),
-                dbc.Col(dbc.Input(type="number", id={'type': 'trace-thickness', 'index': col}, value=val_width, min=0, step=1, size="sm"), width=2),
-                dbc.Col(html.Label("Opacity", style={'fontSize': '0.75rem'}), width=1, className="pe-0"),
-                dbc.Col(dbc.Input(type="number", id={'type': 'trace-opacity', 'index': col}, value=val_opac, min=0.0, max=1.0, step=0.1, size="sm"), width=2),
-                dbc.Col(html.Label("Order", style={'fontSize': '0.75rem'}), width=1, className="pe-0"),
-                dbc.Col(dbc.Input(type="number", id={'type': 'trace-order', 'index': col}, value=val_order, step=1, size="sm"), width=2),
-            ], className="mb-2 align-items-center")
-        ], style={'borderBottom': '1px solid #eee', 'paddingBottom': '5px', 'marginBottom': '5px'} if i < len(selected_traces)-1 else {})
-        trace_rows.append(row)
-
-    if not trace_rows:
-        trace_rows = html.Div("Please select at least one Y axis data to format traces.", className="text-muted small")
-
-    return trace_rows
+    saved_state = config.get('canvases', {}).get(canvas_name, {}).get('tc', {}) if canvas_name else {}
+    return render_trace_controls(selected_traces, dom_state, saved_state)
 
 @callback(
     Output('date-picker-div', 'style'),
@@ -462,7 +321,7 @@ def update_date_picker(timeframe, ref_date, project_name):
     if not ts_col: return {'display':'none'}, {'display': 'block'}, dash.no_update, dash.no_update, dash.no_update, dash.no_update
     file_path = config.get('file_path')
     if not file_path or not os.path.exists(file_path): return {'display': 'none'}, {'display': 'block'}, dash.no_update, dash.no_update, dash.no_update, dash.no_update
-    df = load_csv_data(file_path, sep=config.get('sep', ','), decimal=config.get('decimal', '.'), timestamp_col=ts_col, timestamp_format=config.get('timestamp_format'))
+    df = load_data_file(file_path, sep=config.get('sep', ','), decimal=config.get('decimal', '.'), timestamp_col=ts_col, timestamp_format=config.get('timestamp_format'))
     if df is None or ts_col not in df.columns or df[ts_col].dtype not in [pl.Datetime, pl.Date]: return {'display':'none'}, {'display': 'block'}, dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
     min_val = df.select(pl.col(ts_col).min()).item()
@@ -501,8 +360,7 @@ def update_date_picker(timeframe, ref_date, project_name):
     prevent_initial_call=True
 )
 def display_delete_confirm(n_clicks, canvas_name):
-    if n_clicks and canvas_name: return True
-    return False
+    return bool(n_clicks and canvas_name)
 
 @callback(
     Output('save-status-msg', 'children'),
@@ -554,21 +412,18 @@ def save_canvas_callback(n_save, n_update, n_confirm, n_cancel, n_delete, is_ope
         return "Delete Failed", store_data, dash.no_update, dash.no_update
         
     projects = load_projects()
-    
     if trig == 'cancel-overwrite-canvas':
         return "", store_data, False, dash.no_update
         
     if trig in ['save-canvas-btn', 'update-canvas-btn']:
         target = existing_name if trig == 'update-canvas-btn' else new_name
-        if not target or not proj: return "Need Name & Project", store_data, dash.no_update, dash.no_update
+        if not target or not proj: return "Please provide Name & Project", store_data, dash.no_update, dash.no_update
         
-        # Check for overwrite/update confirmation requirement
         if trig == 'save-canvas-btn' and target in projects.get(proj, {}).get('canvases', {}):
             return "", store_data, True, f"A canvas named '{target}' already exists. Do you want to overwrite it?"
         if trig == 'update-canvas-btn':
             return "", store_data, True, f"Are you sure you want to update the canvas '{target}'?"
         
-        # If no conflict for Save New, just proceed directly
         tc = {}
         if t_ids:
             for i, tid in enumerate(t_ids):
@@ -581,10 +436,9 @@ def save_canvas_callback(n_save, n_update, n_confirm, n_cancel, n_delete, is_ope
                'gx':gx, 'gy':gy, 'gy2':gy2, 'gy3':gy3, 'gaps':gaps, 
                'sx':sx, 'sy':sy, 'sy2':sy2, 'sy3':sy3, 'tf':tf, 'ref':ref, 'sd':sd, 'ed':ed, 'tc':tc}
         if save_canvas(proj, target, cfg):
-            return "Saved!", store_data + 1, dash.no_update, dash.no_update
+            return "Saved successfully!", store_data + 1, dash.no_update, dash.no_update
             
     if trig == 'confirm-overwrite-canvas':
-        # Determine target from the modal's current text
         target = new_name if modal_body and "already exists" in modal_body else existing_name
         if not target: return "Need Name & Project", store_data, False, dash.no_update
         
@@ -600,7 +454,7 @@ def save_canvas_callback(n_save, n_update, n_confirm, n_cancel, n_delete, is_ope
                'gx':gx, 'gy':gy, 'gy2':gy2, 'gy3':gy3, 'gaps':gaps, 
                'sx':sx, 'sy':sy, 'sy2':sy2, 'sy3':sy3, 'tf':tf, 'ref':ref, 'sd':sd, 'ed':ed, 'tc':tc}
         if save_canvas(proj, target, cfg):
-            return "Saved!", store_data + 1, False, dash.no_update
+            return "Updated successfully!", store_data + 1, False, dash.no_update
             
     return "", store_data, is_open, dash.no_update
 
@@ -653,8 +507,8 @@ def load_canvas(canvas_name, proj, t_ids):
     gy3 = c.get('gy3', []) if 'gy3' in c else (['y3'] if 'y3' in old_grids else [])
 
     return (c.get('x'), y, c.get('y2', c.get('secondary_y', [])), c.get('y3', c.get('tertiary_y', [])),
-            c.get('ctype', c.get('type', 'line')), c.get('leg', c.get('legend', 'top')), c.get('font', 'Arial'),
-            c.get('fs_glob', 12), c.get('fs_leg', 12), c.get('fs_tit', 14), c.get('fs_tick', 12),
+            c.get('ctype', c.get('type', 'line')), c.get('leg', c.get('legend', 'top')), c.get('font', 'Outfit'),
+            c.get('fs_glob', 12), c.get('fs_leg', 11), c.get('fs_tit', 13), c.get('fs_tick', 11),
             c.get('xl', ''), c.get('yl', ''), c.get('y2l', ''), c.get('y3l', ''),
             c.get('xmin'), c.get('xmax'), c.get('ymin'), c.get('ymax'), c.get('y2min'), c.get('y2max'), c.get('y3min'), c.get('y3max'),
             gx, gy, gy2, gy3, 
@@ -676,6 +530,13 @@ def load_canvas(canvas_name, proj, t_ids):
     Input('grid-x-switch', 'value'), Input('grid-y-switch', 'value'), Input('grid-y2-switch', 'value'), Input('grid-y3-switch', 'value'),
     Input('show-x-label', 'value'), Input('show-y-label', 'value'), Input('show-y2-label', 'value'), Input('show-y3-label', 'value'),
     Input('connect-gaps', 'value'),
+    Input('dl-width', 'value'), Input('dl-height', 'value'),
+    Input('extrema-mode', 'value'), Input('extrema-type', 'value'), Input('extrema-badge-format', 'value'),
+    Input('thresh1-val', 'value'), Input('thresh1-lbl', 'value'),
+    Input('thresh2-val', 'value'), Input('thresh2-lbl', 'value'),
+    Input('band-min', 'value'), Input('band-max', 'value'), Input('band-lbl', 'value'), Input('band-color', 'value'),
+    Input('stats-switches', 'value'),
+    Input('event-start-date', 'date'), Input('event-end-date', 'date'), Input('event-label', 'value'),
     Input('date-picker-range', 'start_date'), Input('date-picker-range', 'end_date'),
     Input({'type': 'trace-name', 'index': dash.ALL}, 'value'),
     Input({'type': 'trace-color', 'index': dash.ALL}, 'value'),
@@ -687,155 +548,60 @@ def load_canvas(canvas_name, proj, t_ids):
     State({'type': 'trace-name', 'index': dash.ALL}, 'id'),
     State('project-selector', 'value')
 )
-def render_graph(x, y, y2, y3, ctype, leg, font, fs_glob, fs_leg, fs_tit, fs_tick, xl, yl, y2l, y3l, xmin, xmax, ymin, ymax, y2min, y2max, y3min, y3max, gx, gy, gy2, gy3,
-                 sx, sy, sy2, sy3, gaps, sd, ed,
-                t_names, t_cols, t_types, t_styles, t_thick, t_opac, t_order, t_ids, proj):
+def render_graph_cb(x, y, y2, y3, ctype, leg, font, fs_glob, fs_leg, fs_tit, fs_tick, xl, yl, y2l, y3l, xmin, xmax, ymin, ymax, y2min, y2max, y3min, y3max, gx, gy, gy2, gy3,
+                    sx, sy, sy2, sy3, gaps, w_cm, h_cm,
+                    ext_mode, ext_type, ext_badge,
+                    th1_val, th1_lbl, th2_val, th2_lbl,
+                    b_min, b_max, b_lbl, b_col,
+                    stats_sw, ev_sd, ev_ed, ev_lbl,
+                    sd, ed,
+                    t_names, t_cols, t_types, t_styles, t_thick, t_opac, t_order, t_ids, proj):
     if not all([x, proj, ctype]): return go.Figure()
-    if y is None: y = []
-    if y2 is None: y2 = []
-    if y3 is None: y3 = []
-    if gx is None: gx = []
-    if gy is None: gy = []
-    if gy2 is None: gy2 = []
-    if gy3 is None: gy3 = []
     
-    config = load_projects()[proj]
-    df = load_csv_data(config['file_path'], sep=config.get('sep', ','), decimal=config.get('decimal', '.'), timestamp_col=config.get('timestamp_col'), timestamp_format=config.get('timestamp_format'))
+    config = load_projects().get(proj, {})
+    if not config or 'file_path' not in config: return go.Figure()
+    
+    df = load_data_file(config['file_path'], sep=config.get('sep', ','), decimal=config.get('decimal', '.'), timestamp_col=config.get('timestamp_col'), timestamp_format=config.get('timestamp_format'))
     if df is None: return go.Figure()
     
-    ts_col = config.get('timestamp_col')
-    is_time_x = False
-    if ts_col and ts_col in df.columns and df[ts_col].dtype in [pl.Datetime, pl.Date]:
-        if sd: df = df.filter(pl.col(ts_col) >= datetime.datetime.strptime(sd.split('T')[0], '%Y-%m-%d'))
-        if ed: df = df.filter(pl.col(ts_col) < datetime.datetime.strptime(ed.split('T')[0], '%Y-%m-%d') + datetime.timedelta(days=1))
-        if x == ts_col: is_time_x = True
-
-    has_sec = len(y2) > 0
-    has_tert = len(y3) > 0
-    fig = go.Figure()
-    if has_sec or has_tert:
-        fig = make_subplots(specs=[[{"secondary_y": True}]])
-    if has_tert:
-        fig.update_layout(
-            xaxis=dict(domain=[0, 0.92]),
-            yaxis3=dict(overlaying='y', side='right', anchor='free', position=1.0, showgrid=bool(gy3))
-        )
-
     tc = {}
     if t_ids:
         for i, tid in enumerate(t_ids):
             tc[tid['index']] = {'name': t_names[i], 'color': t_cols[i], 'type': t_types[i], 'style': t_styles[i] if t_styles and i < len(t_styles) else 'solid', 'width': t_thick[i], 'opacity': t_opac[i], 'order': t_order[i]}
 
-    def add(col, ax):
-        c = tc.get(col, {})
-        ctype_actual = ctype if c.get('type', 'global') == 'global' else c.get('type')
-        name = c.get('name') or col
-        color = c.get('color')
-        width = c.get('width', 2)
-        style = c.get('style', 'solid')
-        opac = c.get('opacity', 1.0)
-        
-        md = dict(color=color, opacity=opac) if color else dict(opacity=opac)
-        ld = dict(color=color, width=width) if color else dict(width=width)
-        if style != 'solid': ld['dash'] = style
-        
-        x_data = df[x].to_list()
-        y_series = df[col]
-        if y_series.dtype in [pl.Utf8, pl.String, pl.Object]:
-            try:
-                y_series = y_series.str.replace(",", ".").cast(pl.Float64, strict=False)
-            except Exception:
-                pass
-        y_data = y_series.to_list()
-        
-        if ctype_actual == 'scatter':
-            t = go.Scatter(x=x_data, y=y_data, mode='markers', name=name, marker=md)
-        elif ctype_actual == 'bar':
-            t = go.Bar(x=x_data, y=y_data, name=name, marker=md)
-        elif ctype_actual == 'area':
-            ld['width'] = 0
-            t = go.Scatter(x=x_data, y=y_data, mode='lines', name=name, line=ld, fill='tozeroy', connectgaps=gaps, opacity=opac)
-        else:
-            t = go.Scatter(x=x_data, y=y_data, mode='lines', name=name, line=ld, connectgaps=gaps, opacity=opac)
-        
-        return t
-            
-    if isinstance(y, str): y = [y]
-    if isinstance(y2, str): y2 = [y2]
-    if isinstance(y3, str): y3 = [y3]
-    
-    traces_to_add = []
-    for col in y:
-        traces_to_add.append({'trace': add(col, 'y'), 'order': tc.get(col, {}).get('order', 1), 'ax': 'y'})
-    for col in y2:
-        traces_to_add.append({'trace': add(col, 'y2'), 'order': tc.get(col, {}).get('order', 1), 'ax': 'y2'})
-    for col in y3:
-        traces_to_add.append({'trace': add(col, 'y3'), 'order': tc.get(col, {}).get('order', 1), 'ax': 'y3'})
-        
-    traces_to_add.sort(key=lambda item: (item['order'] if item['order'] is not None else 0))
-    
-    for item in traces_to_add:
-        if item['ax'] == 'y3':
-            item['trace'].update(yaxis='y3')
-            fig.add_trace(item['trace'])
-        else:
-            if has_sec or has_tert:
-                fig.add_trace(item['trace'], secondary_y=(item['ax'] == 'y2'))
-            else:
-                fig.add_trace(item['trace'])
-
-    ldict = {}
-    if leg == 'none': ldict = dict(showlegend=False)
-    elif leg == 'top': ldict = dict(legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5))
-    elif leg == 'bottom': ldict = dict(legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5))
-
-    fig.update_layout(
-        margin=dict(l=20, r=(100 if has_tert else (60 if has_sec else 20)), t=40, b=20),
-        template='plotly_white', font=dict(family=font, size=fs_glob),
-        xaxis_title=(xl if xl else x) if bool(sx) else None, 
-        yaxis_title=(yl if yl else (y[0] if len(y)==1 else "Values")) if bool(sy) else None,
-        **ldict
+    return build_single_chart_figure(
+        df=df, x=x, y=y, y2=y2, y3=y3, ctype=ctype, leg=leg, font=font,
+        fs_glob=fs_glob, fs_leg=fs_leg, fs_tit=fs_tit, fs_tick=fs_tick,
+        xl=xl, yl=yl, y2l=y2l, y3l=y3l, xmin=xmin, xmax=xmax, ymin=ymin, ymax=ymax,
+        y2min=y2min, y2max=y2max, y3min=y3min, y3max=y3max,
+        gx=gx, gy=gy, gy2=gy2, gy3=gy3, sx=sx, sy=sy, sy2=sy2, sy3=sy3,
+        gaps=gaps, sd=sd, ed=ed, ts_col=config.get('timestamp_col'), tc=tc,
+        w_cm=w_cm, h_cm=h_cm,
+        extrema_mode=ext_mode, extrema_type=ext_type, extrema_badge=ext_badge,
+        thresh1_val=th1_val, thresh1_lbl=th1_lbl,
+        thresh2_val=th2_val, thresh2_lbl=th2_lbl,
+        band_min=b_min, band_max=b_max, band_lbl=b_lbl, band_color=b_col,
+        stats_switches=stats_sw,
+        event_start=ev_sd, event_end=ev_ed, event_label=ev_lbl
     )
-    if y2l and bool(sy2): fig.update_yaxes(title_text=y2l, secondary_y=True)
-    if y3l and bool(sy3): 
-        fig.update_layout(yaxis3=dict(title=y3l, side='right', overlaying='y', anchor='free', position=1.0, automargin=True))
-    
-    if leg != 'none' and fs_leg: fig.update_layout(legend=dict(font=dict(size=fs_leg)))
-    fig.update_xaxes(title_font=dict(size=fs_tit), tickfont=dict(size=fs_tick), automargin=True)
-    fig.update_yaxes(title_font=dict(size=fs_tit), tickfont=dict(size=fs_tick), automargin=True)
-    
-    fig.update_xaxes(showgrid=bool(gx), range=[xmin, xmax] if xmin is not None and xmax is not None else None, automargin=True)
-    if is_time_x:
-        fig.update_xaxes(tickformat="%d/%m/%Y", automargin=True)
-        
-    # Only pass secondary_y if the figure was created with make_subplots
-    yaxes_params = dict(showgrid=bool(gy), range=[ymin, ymax] if ymin is not None and ymax is not None else None, automargin=True)
-    if has_sec or has_tert:
-        yaxes_params['secondary_y'] = False
-    fig.update_yaxes(**yaxes_params)
 
-    if has_sec or has_tert:
-        fig.update_yaxes(showgrid=bool(gy2), range=[y2min, y2max] if y2min is not None and y2max is not None else None, secondary_y=True, automargin=True)
-    
-    if has_tert:
-        fig.update_layout(yaxis3=dict(range=[y3min, y3max] if y3min is not None and y3max is not None else None, automargin=True))
-        
-    return fig
-
+# Clientside vector/raster export callback
 dash.clientside_callback(
     """
-    function(n_clicks, format, width_cm, height_cm, dpi) {
+    function(n_clicks, format, width_cm, height_cm, dpi, proj, canvas_name) {
         if (n_clicks) {
             const width_px = (width_cm / 2.54) * 96;
             const height_px = (height_cm / 2.54) * 96;
-            const scale = dpi / 96;
+            const scale = (dpi || 300) / 96;
             const gd = document.getElementById('main-graph').querySelector('.js-plotly-plot') || document.getElementById('main-graph');
+            const fname = (proj || 'ChartMate') + '_' + (canvas_name || 'canvas');
+            
             Plotly.downloadImage(gd, {
-                format: format,
+                format: format || 'svg',
                 width: width_px,
                 height: height_px,
                 scale: scale,
-                filename: 'chartmate_export'
+                filename: fname
             });
         }
         return window.dash_clientside.no_update;
@@ -847,5 +613,7 @@ dash.clientside_callback(
     State('dl-width', 'value'),
     State('dl-height', 'value'),
     State('dl-dpi', 'value'),
+    State('project-selector', 'value'),
+    State('canvas-selector', 'value'),
     prevent_initial_call=True
 )

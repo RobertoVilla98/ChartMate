@@ -1,7 +1,8 @@
 dash
-pandas
-plotly
 dash-bootstrap-components
+plotly
+polars
 openpyxl
 pywebview
 pyinstaller
+kaleido

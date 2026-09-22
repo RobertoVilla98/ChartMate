@@ -1,42 +1,507 @@
-body {
-    background-color: #f8f9fa;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+/* ==========================================================================
+   ChartMate - Velth Design System Theme (Light Mode)
+   Palette: Zinc Light (#fafafa, #ffffff, #f4f4f5), Emerald Accent (#059669, #10b981),
+            Sky Blue (#0284c7), Amber (#d97706)
+   Typography: 'Outfit' (Sans-Serif) & 'JetBrains Mono' (Monospace)
+   ========================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&display=swap');
+
+:root {
+    --bg-base: #f8fafc;
+    --bg-surface: #ffffff;
+    --bg-surface-elevated: #f1f5f9;
+    --bg-surface-hover: #e2e8f0;
+    --border-subtle: #e2e8f0;
+    --border-card: #e2e8f0;
+    --border-accent: rgba(16, 185, 129, 0.4);
+    
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+    --text-muted: #94a3b8;
+    
+    --emerald-primary: #059669;
+    --emerald-hover: #047857;
+    --emerald-glow: rgba(16, 185, 129, 0.15);
+    --emerald-subtle: #ecfdf5;
+    --emerald-border: #a7f3d0;
+    
+    --sky-primary: #0284c7;
+    --sky-subtle: #f0f9ff;
+    --sky-border: #bae6fd;
+    
+    --amber-primary: #d97706;
+    --amber-subtle: #fffbeb;
+    --amber-border: #fde68a;
+    
+    --font-sans: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
 }
 
+/* Base Body Styles */
+body {
+    background-color: var(--bg-base);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    letter-spacing: -0.01em;
+    min-height: 100vh;
+    background-image: 
+        radial-gradient(ellipse 80% 50% at 50% -20%, rgba(16, 185, 129, 0.05), transparent 60%),
+        radial-gradient(circle at 100% 100%, rgba(2, 132, 199, 0.03), transparent 50%);
+    background-attachment: fixed;
+}
+
+/* Typography Utilities */
+.font-mono {
+    font-family: var(--font-mono) !important;
+}
+
+.text-emerald {
+    color: var(--emerald-primary) !important;
+}
+
+.text-sky {
+    color: var(--sky-primary) !important;
+}
+
+.text-amber {
+    color: var(--amber-primary) !important;
+}
+
+/* Cards & Containers */
 .card {
-    border: none;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    border-radius: 10px;
+    background-color: var(--bg-surface) !important;
+    border: 1px solid var(--border-card) !important;
+    border-radius: 14px !important;
+    box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.04), 0 2px 6px -1px rgba(0, 0, 0, 0.02) !important;
+    color: var(--text-primary) !important;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card:hover {
+    border-color: #cbd5e1 !important;
+    box-shadow: 0 10px 20px -3px rgba(0, 0, 0, 0.06), 0 4px 6px -2px rgba(0, 0, 0, 0.03) !important;
 }
 
 .card-header {
-    background-color: #343a40;
-    color: white;
-    border-top-left-radius: 10px !important;
-    border-top-right-radius: 10px !important;
-    font-weight: bold;
+    background-color: #f8fafc !important;
+    border-bottom: 1px solid var(--border-subtle) !important;
+    color: var(--text-primary) !important;
+    border-top-left-radius: 13px !important;
+    border-top-right-radius: 13px !important;
+    font-weight: 600 !important;
+    font-size: 0.92rem !important;
+    letter-spacing: -0.01em;
+    padding: 0.75rem 1.15rem !important;
+}
+
+.card-body {
+    padding: 1.15rem !important;
+}
+
+/* Navigation Bar */
+.velth-navbar {
+    background: rgba(255, 255, 255, 0.9) !important;
+    backdrop-filter: blur(16px);
+    border-bottom: 1px solid var(--border-subtle) !important;
+    padding: 0.75rem 1.5rem !important;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.03);
 }
 
 .nav-link {
-    color: rgba(255,255,255,.5) !important;
+    color: var(--text-secondary) !important;
+    font-weight: 500;
+    font-size: 0.9rem;
+    padding: 0.45rem 1rem !important;
+    border-radius: 9999px !important;
+    transition: all 0.2s ease !important;
 }
 
-.nav-link:hover {
-    color: rgba(255,255,255,.75) !important;
+.nav-link:hover, .nav-link.active {
+    color: var(--text-primary) !important;
+    background-color: #f1f5f9 !important;
+    border: 1px solid var(--border-subtle);
+}
+
+.nav-link.active {
+    color: var(--emerald-primary) !important;
+    font-weight: 600 !important;
+    background-color: var(--emerald-subtle) !important;
+    border-color: var(--emerald-border) !important;
+}
+
+/* Brand Badge */
+.velth-brand-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.35rem 0.85rem;
+    background: #ffffff;
+    border: 1px solid var(--border-subtle);
+    border-radius: 9999px;
+    font-weight: 700;
+    font-size: 1.1rem;
+    letter-spacing: -0.02em;
+    color: var(--text-primary);
+    text-decoration: none !important;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+}
+
+.velth-brand-badge:hover {
+    border-color: var(--emerald-primary);
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.12);
+}
+
+/* Status Badges & Pills */
+.velth-badge {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.2rem 0.6rem;
+    border-radius: 9999px;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.velth-badge-emerald {
+    background-color: var(--emerald-subtle);
+    color: var(--emerald-primary);
+    border: 1px solid var(--emerald-border);
+}
+
+.velth-badge-sky {
+    background-color: var(--sky-subtle);
+    color: var(--sky-primary);
+    border: 1px solid var(--sky-border);
+}
+
+.velth-badge-amber {
+    background-color: var(--amber-subtle);
+    color: var(--amber-primary);
+    border: 1px solid var(--amber-border);
+}
+
+/* Form Controls (Inputs, Selects, Dropdowns) */
+.form-control, .form-select, input[type="text"], input[type="number"] {
+    background-color: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    color: var(--text-primary) !important;
+    border-radius: 8px !important;
+    font-size: 0.85rem !important;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
+}
+
+.form-control:focus, .form-select:focus, input:focus {
+    background-color: #ffffff !important;
+    border-color: var(--emerald-primary) !important;
+    box-shadow: 0 0 0 3px var(--emerald-glow) !important;
+    outline: none !important;
+}
+
+.form-control::placeholder {
+    color: var(--text-muted) !important;
+}
+
+/* Dash Dropdown Styling */
+.Select-control {
+    background-color: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 8px !important;
+    color: var(--text-primary) !important;
+    min-height: 34px !important;
+}
+
+.is-focused:not(.is-open) > .Select-control {
+    border-color: var(--emerald-primary) !important;
+    box-shadow: 0 0 0 3px var(--emerald-glow) !important;
+}
+
+.Select-value-label, .Select-placeholder, .Select-input > input {
+    color: var(--text-primary) !important;
+    font-size: 0.85rem !important;
+}
+
+.Select-menu-outer {
+    background-color: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 8px !important;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08) !important;
+    z-index: 1000 !important;
+}
+
+.Select-option {
+    background-color: #ffffff !important;
+    color: var(--text-primary) !important;
+    font-size: 0.85rem !important;
+}
+
+.Select-option.is-focused, .Select-option:hover {
+    background-color: var(--emerald-subtle) !important;
+    color: var(--emerald-primary) !important;
+}
+
+.Select--multi .Select-value {
+    background-color: var(--emerald-subtle) !important;
+    border: 1px solid var(--emerald-border) !important;
+    color: var(--emerald-primary) !important;
+    border-radius: 6px !important;
+    font-weight: 500;
+}
+
+.Select--multi .Select-value-icon {
+    border-right: 1px solid var(--emerald-border) !important;
+    color: var(--emerald-primary) !important;
+}
+
+.Select--multi .Select-value-icon:hover {
+    background-color: #fee2e2 !important;
+    color: #ef4444 !important;
+}
+
+/* Buttons */
+.btn {
+    border-radius: 8px !important;
+    font-weight: 500 !important;
+    font-size: 0.85rem !important;
+    transition: all 0.2s ease !important;
+    letter-spacing: -0.01em;
 }
 
 .btn-primary {
-    background-color: #007bff;
-    border-color: #007bff;
-    border-radius: 5px;
+    background-color: var(--emerald-primary) !important;
+    border-color: var(--emerald-primary) !important;
+    color: #ffffff !important;
+    font-weight: 600 !important;
 }
 
 .btn-primary:hover {
-    background-color: #0056b3;
-    border-color: #004085;
+    background-color: var(--emerald-hover) !important;
+    border-color: var(--emerald-hover) !important;
+    box-shadow: 0 4px 12px var(--emerald-glow) !important;
+    color: #ffffff !important;
 }
 
-.dash-table-container {
-    border-radius: 5px;
+.btn-success {
+    background-color: var(--emerald-primary) !important;
+    border-color: var(--emerald-primary) !important;
+    color: #ffffff !important;
+    font-weight: 600 !important;
+}
+
+.btn-success:hover {
+    background-color: var(--emerald-hover) !important;
+    border-color: var(--emerald-hover) !important;
+    box-shadow: 0 4px 12px var(--emerald-glow) !important;
+    color: #ffffff !important;
+}
+
+.btn-secondary {
+    background-color: #f1f5f9 !important;
+    border-color: #cbd5e1 !important;
+    color: var(--text-primary) !important;
+}
+
+.btn-secondary:hover {
+    background-color: #e2e8f0 !important;
+    border-color: #94a3b8 !important;
+    color: var(--text-primary) !important;
+}
+
+.btn-info {
+    background-color: var(--sky-subtle) !important;
+    border-color: var(--sky-border) !important;
+    color: var(--sky-primary) !important;
+}
+
+.btn-info:hover {
+    background-color: var(--sky-primary) !important;
+    border-color: var(--sky-primary) !important;
+    color: #ffffff !important;
+}
+
+.btn-danger {
+    background-color: #fef2f2 !important;
+    border-color: #fecaca !important;
+    color: #dc2626 !important;
+}
+
+.btn-danger:hover {
+    background-color: #dc2626 !important;
+    border-color: #dc2626 !important;
+    color: #ffffff !important;
+}
+
+/* Accordion */
+.accordion-item {
+    background-color: #ffffff !important;
+    border: 1px solid var(--border-subtle) !important;
+    border-radius: 10px !important;
+    margin-bottom: 0.5rem !important;
     overflow: hidden;
+}
+
+.accordion-button {
+    background-color: #f8fafc !important;
+    color: var(--text-primary) !important;
+    font-weight: 600 !important;
+    font-size: 0.88rem !important;
+    border-bottom: 1px solid transparent !important;
+}
+
+.accordion-button:not(.collapsed) {
+    background-color: var(--emerald-subtle) !important;
+    color: var(--emerald-primary) !important;
+    border-bottom: 1px solid var(--emerald-border) !important;
+    box-shadow: none !important;
+}
+
+.accordion-body {
+    background-color: #ffffff !important;
+    color: var(--text-primary) !important;
+}
+
+/* Tables */
+.table {
+    color: var(--text-primary) !important;
+    border-color: var(--border-subtle) !important;
+}
+
+.table-light, thead {
+    background-color: #f8fafc !important;
+    color: var(--text-secondary) !important;
+    border-bottom: 1px solid var(--border-subtle) !important;
+}
+
+.table td, .table th {
+    border-color: var(--border-subtle) !important;
+}
+
+/* Dash DataTable (Light Theme) */
+.dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner th {
+    background-color: #f8fafc !important;
+    color: #334155 !important;
+    font-family: var(--font-mono) !important;
+    font-size: 0.8rem !important;
+    border: 1px solid #e2e8f0 !important;
+}
+
+.dash-table-container .dash-spreadsheet-container .dash-spreadsheet-inner td {
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+    font-family: var(--font-mono) !important;
+    font-size: 0.8rem !important;
+    border: 1px solid #e2e8f0 !important;
+}
+
+/* DatePicker Single & Range */
+.DateInput, .DateInput_input, .SingleDatePickerInput, .DateRangePickerInput {
+    background-color: #ffffff !important;
+    color: var(--text-primary) !important;
+    border-color: #cbd5e1 !important;
+    border-radius: 8px !important;
+    font-family: var(--font-mono) !important;
+    font-size: 0.85rem !important;
+}
+
+.DateInput_input__focused {
+    border-bottom: 2px solid var(--emerald-primary) !important;
+}
+
+.CalendarMonth, .CalendarMonthGrid, .DayPickerNavigation_button {
+    background-color: #ffffff !important;
+}
+
+.CalendarDay__default {
+    background: #ffffff !important;
+    color: var(--text-primary) !important;
+    border: 1px solid #f1f5f9 !important;
+}
+
+.CalendarDay__selected, .CalendarDay__selected:hover {
+    background: var(--emerald-primary) !important;
+    color: #ffffff !important;
+}
+
+/* Popover & Modals */
+.popover {
+    background-color: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1) !important;
+    border-radius: 12px !important;
+}
+
+.popover-header {
+    background-color: #f8fafc !important;
+    color: var(--text-primary) !important;
+    border-bottom: 1px solid var(--border-subtle) !important;
+}
+
+.popover-body {
+    color: var(--text-primary) !important;
+}
+
+.modal-content {
+    background-color: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 16px !important;
+    color: var(--text-primary) !important;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15) !important;
+}
+
+.modal-header {
+    border-bottom: 1px solid var(--border-subtle) !important;
+}
+
+.modal-footer {
+    border-top: 1px solid var(--border-subtle) !important;
+}
+
+/* Graph Canvas Viewport Container */
+.graph-preview-container {
+    background: #ffffff;
+    border: 1px solid #cbd5e1;
+    border-radius: 12px;
+    position: relative;
+    overflow: auto;
+    transition: all 0.3s ease;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 12px;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
+}
+
+.graph-preview-container:hover {
+    border-color: var(--emerald-primary);
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+    width: 7px;
+    height: 7px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f5f9;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+/* Form Check / Switches */
+.form-check-input:checked {
+    background-color: var(--emerald-primary) !important;
+    border-color: var(--emerald-primary) !important;
+}
+
+.form-check-input:focus {
+    box-shadow: 0 0 0 3px var(--emerald-glow) !important;
+    border-color: var(--emerald-primary) !important;
 }

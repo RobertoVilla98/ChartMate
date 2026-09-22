@@ -2,21 +2,22 @@ import json
 import os
 from typing import Dict, List, Any
 
-PROJECTS_FILE = "utils/projects.json"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECTS_FILE = os.path.join(BASE_DIR, "projects.json")
 
 def ensure_storage():
-    """Ensures the storage directory exists."""
-    if not os.path.exists("utils"):
-        os.makedirs("utils")
+    """Ensures the storage directory exists and initializes the projects file if missing."""
+    if not os.path.exists(BASE_DIR):
+        os.makedirs(BASE_DIR, exist_ok=True)
     if not os.path.exists(PROJECTS_FILE):
-        with open(PROJECTS_FILE, 'w') as f:
-            json.dump({}, f)
+        with open(PROJECTS_FILE, 'w', encoding='utf-8') as f:
+            json.dump({}, f, indent=4)
 
 def load_projects() -> Dict[str, Any]:
     """Loads all projects from the JSON file."""
     ensure_storage()
     try:
-        with open(PROJECTS_FILE, 'r') as f:
+        with open(PROJECTS_FILE, 'r', encoding='utf-8') as f:
             content = f.read()
             if not content:
                 return {}
@@ -30,7 +31,7 @@ def save_projects(projects: Dict[str, Any]):
     if projects is None:
         projects = {}
     ensure_storage()
-    with open(PROJECTS_FILE, 'w') as f:
+    with open(PROJECTS_FILE, 'w', encoding='utf-8') as f:
         json.dump(projects, f, indent=4)
 
 def get_project(project_name: str) -> Dict[str, Any]:
