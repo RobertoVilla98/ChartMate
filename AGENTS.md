@@ -6,13 +6,14 @@
 
 ## 🎯 1. Project Overview & Mission
 
-**ChartMate** is a standalone, high-performance desktop visualization studio built with **Python, Dash, Polars, and Plotly**.  
+**ChartMate** is a standalone, ultra-fast desktop visualization studio built with **Rust (Tauri v2), TypeScript, Vite, and Plotly.js**.  
 It is designed for researchers, engineers, and data scientists (specifically across engineering, building physics, indoor environmental quality, and time-series sensor analysis) who need to produce **journal-quality, publication-ready figures in seconds** without writing repetitive plotting scripts in Matplotlib or Seaborn.
 
 ### Key Philosophy
-* **Fast & Ergonomic**: Load CSV/time-series data, pick variables, click a preset, and get a journal-ready figure immediately.
-* **Academic Standards Out-of-the-Box**: Publication presets (Single Column, Double Column, Square), vector SVG/PDF export, 300/600 DPI raster, multi-panel academic lettering `(a)-(d)`, and smart annotations.
-* **Modern Velth Light Design System**: Clean, white/zinc aesthetic inspired by [Velth.it](https://www.velth.it/) using **Outfit** (sans-serif) and **JetBrains Mono** (tabular data).
+* **Ultra-Fast & Zero Conflict**: Native Windows desktop executable (`ChartMate.exe`, ~23 MB), starts in < 1 second, zero local port conflicts, native WebView2 rendering.
+* **Direct SharePoint & Local Path Access**: Drag-and-drop or select files directly from local/SharePoint folders (`C:\Users\...\SharePoint\...`) without uploading or duplicating data.
+* **Academic Standards Out-of-the-Box**: Publication presets (Single Column 8.5cm, Double Column 17cm, Square 12cm), vector SVG/PDF export at 300/600 DPI, multi-axis Y1/Y2/Y3, and smart annotations.
+* **ChartMate Clean Scientific Design System**: Clean, white/zinc aesthetic using **Outfit** (sans-serif) and **JetBrains Mono** (tabular data and coordinates).
 
 ---
 
@@ -20,12 +21,12 @@ It is designed for researchers, engineers, and data scientists (specifically acr
 
 | Component | Technology | Rationale |
 | :--- | :--- | :--- |
-| **Backend & UI** | Python 3.10+, Dash, Dash Bootstrap Components (`dbc`) | Multi-page desktop app, reactive state management |
-| **Data Engine** | **Polars** (`pl.DataFrame`, `pl.Series`) | High-speed, memory-efficient time-series ingestion and parsing (do **not** use Pandas) |
-| **Rendering Engine** | **Plotly Graph Objects** (`go.Figure`) | Decoupled scientific plotting in `utils/chart_engine.py` |
-| **Persistence** | Local JSON (`utils/projects.json` via `utils/storage.py`) | Project profiles, saved canvases, and multiplot layouts |
-| **Typography & Theme** | CSS3, Google Fonts (`Outfit`, `JetBrains Mono`) | `assets/style.css`, clean Velth Light theme |
-| **Packaging** | PyInstaller (`build_exe.py`) | Standalone zero-dependency executable (`dist/`) |
+| **Desktop Shell & Backend** | **Rust (Tauri v2)** | Native Windows app, low memory footprint (< 60 MB RAM), zero port conflicts, direct filesystem & dialog access |
+| **Data Engine & I/O** | **Rust (`csv`, `calamine`) + PapaParse** | Instant multi-format parsing (CSV, TSV, Excel), auto delimiter detection (`,`, `;`, `\t`), European decimal comma handling |
+| **Rendering Engine** | **Plotly.js (`plotly.js-dist-min`)** | 60 FPS client-side scientific visualization, zooming, panning, vector export |
+| **Frontend Framework** | **TypeScript + Vite** | Fast build times (< 1.7s), modular component architecture |
+| **Typography & Theme** | CSS3, Google Fonts (`Outfit`, `JetBrains Mono`) | `tauri-app/src/style.css`, ChartMate Clean Scientific theme |
+| **Legacy Codebase** | Git Branch `legacy-python-dash` | Full Python/Dash codebase preserved for reference and parity validation |
 
 ---
 

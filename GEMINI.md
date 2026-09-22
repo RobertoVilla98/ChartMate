@@ -8,32 +8,28 @@ Leggendo questo file all'inizio di una nuova chat, l'agente saprà istantaneamen
 ## 📌 Identikit di ChartMate
 
 * **Scopo**: Studio desktop per ricercatori e ingegneri per creare grafici e figure scientifiche *journal-ready* ad alta risoluzione in pochi secondi, senza dover scrivere script Matplotlib/Seaborn.
-* **Tech Stack**: Python 3.10+, **Dash**, **Polars** (nessun uso di Pandas), **Plotly**, Dash Bootstrap Components.
-* **Design System**: *Velth Light Mode* (`#f8fafc`, bianco puro, accento `#059669` Emerald, font *Outfit* e *JetBrains Mono*).
+* **Tech Stack Desktop Nativo**: **Rust (Tauri v2)**, **TypeScript**, **Vite**, **Plotly.js**, PapaParse, SheetJS.
+* **Eseguibile Standalone**: Singolo file Windows [`ChartMate.exe`](file:///c:/Users/rober/Documents/GitHub/ChartMate/ChartMate.exe) da appena **23.4 MB**, avvio < 1s, zero conflitti di porte, RAM < 60 MB.
+* **Supporto SharePoint & Filesystem**: Drag-and-drop diretto e dialog nativo Windows per leggere file da percorsi locali/rete senza duplicare dati.
+* **Design System**: ChartMate Clean Scientific (`#f8fafc`, bianco puro, accento `#059669` Emerald, font *Outfit* e *JetBrains Mono*).
 * **Guida Completa di Dettaglio**: Leggi [`AGENTS.md`](file:///c:/Users/rober/Documents/GitHub/ChartMate/AGENTS.md) per l'architettura dettagliata di ogni modulo.
+* **Branch di Backup Storico**: Il precedente codice Python/Dash è salvato al 100% nel branch Git `legacy-python-dash`.
 
 ---
 
 ## 🎯 Stato Attuale: Dove Siamo Arrivati
 
-1. **Gestione Dati & Progetti ([`pages/home.py`](file:///c:/Users/rober/Documents/GitHub/ChartMate/pages/home.py))**: Ingestione file con parsing separatori (`,`, `;`, tab), virgole decimali europee, timestamp e preview Polars ad alta velocità.
-2. **Single Chart Studio ([`pages/canvas.py`](file:///c:/Users/rober/Documents/GitHub/ChartMate/pages/canvas.py))**:
-   - Fino a 3 assi $Y$ indipendenti ($Y_1, Y_2, Y_3$).
-   - **10 Tipologie di Grafico**: *Line, Scatter, Bar, Area, Box Plot, Violin Plot, Grouped Bar con Error Bars ($\mu \pm \sigma$), Correlation Matrix Heatmap ($r \in [-1, 1]$), Istogramma/KDE, Radar/Spider Plot*.
-   - **Smart Labelling & Annotazioni** ([`components/annotation_panel.py`](file:///c:/Users/rober/Documents/GitHub/ChartMate/components/annotation_panel.py)):
-     - *Peak & Valley Tracker*: Max & Min globale e **Daily Extrema** (max e min automatici per ogni giorno di calendario).
-     - *Soglie e Fasce di Comfort*: Linee orizzontali di limite e fasce rettangolari di target.
-     - *Statistiche*: Linee per Media ($\mu$), Mediana ($M$) e Trendline OLS con formula e $R^2$.
-     - *Event Shading*: Fascia verticale per intervalli temporali critici (*Heatwave*, *Fault*).
-   - **Publication Presets 1-Click**: *Single Column* ($8.5\text{ cm}$), *Double Column* ($17\text{ cm}$), *Square* ($12\text{ cm}$ con ratio $1:1$ reale), *Presentation 16:9*.
-   - **Esportazione ad Alta Risoluzione**: Vettoriale (SVG, PDF) e raster (PNG, JPEG) a $96, 150, 300, 600\text{ DPI}$.
-3. **MultiPlot Studio ([`pages/multi_plot.py`](file:///c:/Users/rober/Documents/GitHub/ChartMate/pages/multi_plot.py))**:
-   - *Topology Presets*: Stack Verticale $3\times 1$ per serie temporali sincrone, $2\times 1$, Griglia $2\times 2$, Affiancato $1\times 2$, Custom.
-   - *Academic Auto-Lettering*: Lettere **`(a)`**, **`(b)`**, **`(c)`**, **`(d)`**...
-   - *Smart Dynamic Spacing*: Eliminazione di collisioni tra testi e assi; asse temporale $X$ condiviso pulito sul fondo.
-4. **Maps Studio ([`pages/maps.py`](file:///c:/Users/rober/Documents/GitHub/ChartMate/pages/maps.py))**:
-   - Provider: 🛰️ *ESRI Satellite World Imagery*, 🗺️ *OpenStreetMap*, 🏙️ *CartoDB Positron*, 🌑 *CartoDB Dark Matter*, 🏔️ *OpenTopoMap*.
-   - Modalità: *Bubble Scatter Map* (colore e raggio scalati), *Density Heatmap Geo*, *GPS Trajectories / Tracks*.
+1. **Backend Rust Nativo & Filesystem I/O ([`tauri-app/src-tauri/src/lib.rs`](file:///c:/Users/rober/Documents/GitHub/ChartMate/tauri-app/src-tauri/src/lib.rs))**:
+   - Lettura e parsing rapido di file CSV, TSV e fogli Excel (`.xlsx`, `.xls`) con auto-detection delimitatori (`,`, `;`, `\t`).
+   - Permessi Windows granulari (`dialog:allow-open`, `fs:allow-read-file`) per aprire percorsi SharePoint senza restrizioni.
+2. **Controller Grafico Scientifico Client-Side ([`tauri-app/src/main.ts`](file:///c:/Users/rober/Documents/GitHub/ChartMate/tauri-app/src/main.ts))**:
+   - Rendering fluido a 60 FPS con Plotly.js.
+   - Gestione assi multi-variabile ($X$, $Y_1$, $Y_2$ overlay destro) e selezione tipologie (Linee, Scatter, Barre, Aree, Box Plot).
+   - **Preset Tipografici WYSIWYG**: *Single Column* ($8.5\text{ cm}$), *Double Column* ($17\text{ cm}$), *Square* ($12\times 12\text{ cm}$).
+   - **Smart Annotations**: Comfort / Target Band integrata ($[20, 26]^\circ\text{C}$).
+   - **Export Vector 1-Click**: Esportazione SVG diretta alle dimensioni fisiche esatte.
+3. **Eseguibile Release Windows Generato**:
+   - Compilazione ottimizzata con toolchain GNU: [`ChartMate.exe`](file:///c:/Users/rober/Documents/GitHub/ChartMate/ChartMate.exe) pronto nella cartella principale.
 
 ---
 

@@ -1,37 +1,32 @@
 ChartMate/
 │
-├── app.py                      # Main entrypoint, Velth navbar (Projects, Canvas, MultiPlot, Maps)
-├── requirements.txt            # Project dependencies (polars, dash, kaleido, etc.)
-├── README.md                   # Quick start & user guide
-├── PROJECT_STATUS.md           # Official tracking of advancements, solved issues & roadmap
-├── AGENTS.md                   # Comprehensive technical manual & developer/AI agent context
-├── GEMINI.md                   # Gemini / Antigravity prompt & session context entrypoint
-├── build_exe.py                # Standalone PyInstaller compilation script
+├── ChartMate.exe               # Standalone lightweight Windows Native Executable (Tauri v2 + Rust, ~23 MB)
 │
-├── assets/                     # UI styling, vector graphics & web fonts
-│   ├── style.css               # Velth Light Mode Design System (Outfit, JetBrains Mono, Emerald)
-│   └── logo.svg                # Vector SVG logo (L-shaped XY axes & waving mate)
+├── tauri-app/                  # Modern Native Desktop Core Architecture
+│   ├── package.json            # Frontend tools: Vite, TypeScript, Plotly.js, PapaParse, SheetJS
+│   ├── index.html              # Clean desktop window entrypoint
+│   ├── src/                    # Reactive Frontend Architecture
+│   │   ├── main.ts             # ChartMate desktop controller (state, multi-axis, presets, Plotly engine)
+│   │   └── style.css           # ChartMate Clean Scientific Design System (Outfit, JetBrains Mono, Emerald)
+│   │
+│   └── src-tauri/              # Ultra-fast Rust Native Backend
+│       ├── Cargo.toml          # Rust dependencies (tauri v2, calamine for Excel, csv, dialog, fs)
+│       ├── tauri.conf.json     # Window, capabilities, HiDPI scaling & filesystem permissions
+│       ├── capabilities/       # Granular OS permissions (open dialog, direct local/SharePoint file read)
+│       └── src/
+│           ├── main.rs         # Native desktop bootstrap
+│           └── lib.rs          # Native high-speed dataset reader (CSV, TSV, Excel) & delimiter detector
 │
-├── components/                 # Reusable UI Widgets & Controllers
-│   ├── __init__.py
-│   ├── export_toolbar.py       # Unified Vector/Raster export toolbar & Publication Presets
-│   ├── annotation_panel.py     # Smart Labelling, Peak Tracker, Thresholds, Target Bands & Stats
-│   ├── trace_styler.py         # Per-trace color, line style, opacity & ordering styler
-│   ├── axis_panel.py           # Axes (X, Y1, Y2, Y3), chart types, grids, limits & timeframe
-│   ├── grid_navigator.py       # MultiPlot visual grid navigator, cell mapper & Topology Presets
-│   └── logo.py                 # Vector logo header component
+├── sample_building_data.csv    # Sample engineering & IEQ sensor dataset for instant testing
 │
-├── pages/                      # Application Page Controllers
-│   ├── home.py                 # Multi-format data ingestion, schema preview & project manager
-│   ├── canvas.py               # Single Chart Studio (slender modular page controller)
-│   ├── multi_plot.py           # MultiPlot Subplot Matrix Studio (journal-ready multi-panel)
-│   └── maps.py                 # Maps Studio (GIS, satellite, bubble scatter & density heatmaps)
+├── legacy-python-dash/         # (Git Branch) Complete original Python/Dash codebase preserved 100%
+│   ├── app.py                  # Original Dash multi-page server
+│   ├── requirements.txt        # Python dependencies
+│   ├── pages/                  # Original Dash pages (home, canvas, multi_plot, maps)
+│   ├── components/             # Original Dash UI widgets
+│   └── utils/                  # Original Polars & chart engine modules
 │
-├── utils/                      # Core Processing & Engine Modules
-│   ├── data_handler.py         # High-performance Polars ingestion (CSV, Parquet, Excel, TSV)
-│   ├── storage.py              # Persistent JSON configuration manager
-│   ├── chart_engine.py         # Decoupled Plotly scientific rendering engine (Charts, MultiPlot, Maps)
-│   └── projects.json           # Local storage database
-│
-└── docs/                       # Architectural documentation
-    └── PROJECT_OVERVIEW.md     # Comprehensive system specification
+├── PROJECT_STATUS.md           # Official live changelog & architectural transition report
+├── AGENTS.md                   # Updated technical documentation for developers & AI agents
+├── GEMINI.md                   # Updated Gemini / Antigravity session context
+└── README.md                   # Repository overview & quick start guide
