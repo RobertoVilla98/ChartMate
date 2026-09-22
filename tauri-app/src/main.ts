@@ -33,7 +33,7 @@ interface AppState {
   timestampCol: string;
   timestampFormat: string;
   
-  // Timeframe Filtering
+  // Timeframe Filtering (Now active in Canvas Studio)
   timeframeMode: 'all' | 'day' | 'week' | 'month' | 'custom';
   startDate: string;
   endDate: string;
@@ -104,7 +104,7 @@ function renderApp() {
         <span class="brand-badge">DESKTOP STUDIO</span>
       </div>
       <nav class="nav-tabs">
-        <button class="nav-btn ${state.currentTab === 'data' ? 'active' : ''}" id="tab-nav-data">1. Data Ingestion & Timeframe</button>
+        <button class="nav-btn ${state.currentTab === 'data' ? 'active' : ''}" id="tab-nav-data">1. Data Source & Parser</button>
         <button class="nav-btn ${state.currentTab === 'canvas' ? 'active' : ''}" id="tab-nav-canvas">2. Single Canvas Studio</button>
         <button class="nav-btn ${state.currentTab === 'multi' ? 'active' : ''}" id="tab-nav-multi">3. MultiPlot Grid</button>
       </nav>
@@ -119,9 +119,8 @@ function renderApp() {
     </header>
 
     <div class="main-container">
-      <!-- VIEW 1: DATA INGESTION & PRE-PROCESSING -->
+      <!-- VIEW 1: DATA INGESTION ONLY (Clean & Focused) -->
       <div class="view-panel ${state.currentTab === 'data' ? 'active' : ''}" id="view-data">
-        <!-- Ingestion Sidebar -->
         <aside class="sidebar">
           <section class="sidebar-section">
             <div class="sidebar-title">
@@ -196,33 +195,9 @@ function renderApp() {
                 </div>
               </div>
             </div>
-          </section>
 
-          <!-- Timeframe Selector -->
-          <section class="sidebar-section">
-            <div class="sidebar-title">Analysis Timeframe</div>
-            
-            <div style="display: flex; gap: 4px; margin-bottom: 10px; flex-wrap: wrap;">
-              <button class="timeframe-pill ${state.timeframeMode === 'all' ? 'active' : ''}" data-tf="all">Full Range</button>
-              <button class="timeframe-pill ${state.timeframeMode === 'day' ? 'active' : ''}" data-tf="day">1 Day</button>
-              <button class="timeframe-pill ${state.timeframeMode === 'week' ? 'active' : ''}" data-tf="week">1 Week</button>
-              <button class="timeframe-pill ${state.timeframeMode === 'month' ? 'active' : ''}" data-tf="month">1 Month</button>
-              <button class="timeframe-pill ${state.timeframeMode === 'custom' ? 'active' : ''}" data-tf="custom">Custom</button>
-            </div>
-
-            <div class="form-row">
-              <div class="form-group" style="flex: 1;">
-                <label class="form-label">Start Date</label>
-                <input type="date" class="form-input" id="cfg-start-date" value="${state.startDate}" />
-              </div>
-              <div class="form-group" style="flex: 1;">
-                <label class="form-label">End Date</label>
-                <input type="date" class="form-input" id="cfg-end-date" value="${state.endDate}" />
-              </div>
-            </div>
-
-            <button class="btn btn-primary" id="btn-goto-canvas" style="width: 100%; margin-top: 10px;">
-              Proceed to Canvas Studio →
+            <button class="btn btn-primary" id="btn-goto-canvas" style="width: 100%; margin-top: 14px;">
+              Open in Canvas Studio →
             </button>
           </section>
         </aside>
@@ -232,9 +207,9 @@ function renderApp() {
           <div class="data-card">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
               <div>
-                <h2 style="font-size: 1.1rem; font-weight: 700; color: #000000;">Dataset Schema & Preview Table</h2>
+                <h2 style="font-size: 1.1rem; font-weight: 700; color: #000000;">Dataset Schema & Raw Data Preview</h2>
                 <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">
-                  Showing first 100 rows with detected column data types
+                  Showing first 100 rows with detected column headers
                 </div>
               </div>
               <div>
@@ -253,10 +228,40 @@ function renderApp() {
         </main>
       </div>
 
-      <!-- VIEW 2: SINGLE CANVAS STUDIO -->
+      <!-- VIEW 2: SINGLE CANVAS STUDIO (With Timeframe Selector & Multi-Axis) -->
       <div class="view-panel ${state.currentTab === 'canvas' ? 'active' : ''}" id="view-canvas">
         <aside class="sidebar">
-          <!-- Variables & Axes -->
+          
+          <!-- 1. TIMEFRAME SELECTOR (Inside Canvas as requested) -->
+          ${state.hasTimestamp ? `
+            <section class="sidebar-section">
+              <div class="sidebar-title">
+                <span>Timeframe & Finestra Temporale</span>
+                <span class="cm-badge cm-badge-sky">Filter</span>
+              </div>
+              
+              <div style="display: flex; gap: 4px; margin-bottom: 8px; flex-wrap: wrap;">
+                <button class="timeframe-pill ${state.timeframeMode === 'all' ? 'active' : ''}" data-tf="all">Full</button>
+                <button class="timeframe-pill ${state.timeframeMode === 'day' ? 'active' : ''}" data-tf="day">1 Day</button>
+                <button class="timeframe-pill ${state.timeframeMode === 'week' ? 'active' : ''}" data-tf="week">1 Week</button>
+                <button class="timeframe-pill ${state.timeframeMode === 'month' ? 'active' : ''}" data-tf="month">1 Month</button>
+                <button class="timeframe-pill ${state.timeframeMode === 'custom' ? 'active' : ''}" data-tf="custom">Custom</button>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group" style="flex: 1;">
+                  <label class="form-label">Inizio</label>
+                  <input type="date" class="form-input" id="canvas-start-date" value="${state.startDate}" />
+                </div>
+                <div class="form-group" style="flex: 1;">
+                  <label class="form-label">Fine</label>
+                  <input type="date" class="form-input" id="canvas-end-date" value="${state.endDate}" />
+                </div>
+              </div>
+            </section>
+          ` : ''}
+
+          <!-- 2. Variables & Axes -->
           <section class="sidebar-section">
             <div class="sidebar-title">Assi e Mappatura Variabili</div>
             
@@ -277,7 +282,7 @@ function renderApp() {
 
             <div class="form-group">
               <label class="form-label">Asse Y2 Secondario (Destra 1)</label>
-              <select class="form-select" id="select-y2" multiple style="height: 60px;">
+              <select class="form-select" id="select-y2" multiple style="height: 55px;">
                 ${renderMultipleColumnOptions(state.selectedY2)}
               </select>
             </div>
@@ -301,7 +306,7 @@ function renderApp() {
             </div>
           </section>
 
-          <!-- Annotazioni Scientifiche -->
+          <!-- 3. Annotazioni Scientifiche -->
           <section class="sidebar-section">
             <div class="sidebar-title">Smart Scientific Annotations</div>
             <div style="display: flex; flex-direction: column; gap: 8px;">
@@ -457,7 +462,7 @@ function attachEventListeners() {
     state.timestampFormat = (e.target as HTMLInputElement).value;
   });
 
-  // Timeframe Pills
+  // Canvas Timeframe Pills
   document.querySelectorAll('.timeframe-pill').forEach(pill => {
     pill.addEventListener('click', (e) => {
       const mode = (e.target as HTMLElement).getAttribute('data-tf') as any;
@@ -469,15 +474,17 @@ function attachEventListeners() {
     });
   });
 
-  // Date Inputs
-  document.getElementById('cfg-start-date')?.addEventListener('change', (e) => {
+  // Canvas Date Inputs
+  document.getElementById('canvas-start-date')?.addEventListener('change', (e) => {
     state.startDate = (e.target as HTMLInputElement).value;
     state.timeframeMode = 'custom';
+    updateChart();
   });
 
-  document.getElementById('cfg-end-date')?.addEventListener('change', (e) => {
+  document.getElementById('canvas-end-date')?.addEventListener('change', (e) => {
     state.endDate = (e.target as HTMLInputElement).value;
     state.timeframeMode = 'custom';
+    updateChart();
   });
 
   // Canvas Studio: Select X
@@ -670,14 +677,27 @@ function updateChart() {
 
   if (state.dataset && state.selectedX) {
     const xIdx = state.dataset.columns.indexOf(state.selectedX);
-    xVals = state.dataset.rows.map(r => r[xIdx]);
+    
+    // Filter rows by Timeframe if Timestamp is active and dates are set
+    let activeRows = state.dataset.rows;
+    if (state.hasTimestamp && state.selectedX === state.timestampCol && (state.startDate || state.endDate)) {
+      activeRows = state.dataset.rows.filter(r => {
+        const val = r[xIdx]?.split(' ')[0]?.replace(/\//g, '-');
+        if (!val) return true;
+        if (state.startDate && val < state.startDate) return false;
+        if (state.endDate && val > state.endDate) return false;
+        return true;
+      });
+    }
+
+    xVals = activeRows.map(r => r[xIdx]);
 
     const palette = ['#000000', '#059669', '#0284c7', '#d97706', '#7c3aed'];
 
     // Primary Y1 Traces
     state.selectedY1.forEach((col, idx) => {
       const yIdx = state.dataset!.columns.indexOf(col);
-      const yVals = state.dataset!.rows.map(r => {
+      const yVals = activeRows.map(r => {
         let val = r[yIdx];
         if (state.decimal === ',') val = val?.replace(',', '.');
         return parseFloat(val) || null;
@@ -698,7 +718,7 @@ function updateChart() {
     // Secondary Y2 Traces
     state.selectedY2.forEach((col) => {
       const yIdx = state.dataset!.columns.indexOf(col);
-      const yVals = state.dataset!.rows.map(r => {
+      const yVals = activeRows.map(r => {
         let val = r[yIdx];
         if (state.decimal === ',') val = val?.replace(',', '.');
         return parseFloat(val) || null;
@@ -718,7 +738,7 @@ function updateChart() {
     // Tertiary Y3 Traces
     state.selectedY3.forEach((col) => {
       const yIdx = state.dataset!.columns.indexOf(col);
-      const yVals = state.dataset!.rows.map(r => {
+      const yVals = activeRows.map(r => {
         let val = r[yIdx];
         if (state.decimal === ',') val = val?.replace(',', '.');
         return parseFloat(val) || null;
