@@ -33,8 +33,12 @@ Leggendo questo file all'inizio di una nuova chat, l'agente saprà istantaneamen
    - **Preset Tipografici WYSIWYG**: *Single Column* ($8.5\text{ cm}$), *Double Column* ($17\text{ cm}$), *Square* ($12\times 12\text{ cm}$).
    - **Smart Annotations**: Peak & Valley Tracker (Global, Daily, Weekly) e Comfort Band IEQ ($[20, 22]^\circ\text{C}$ inverno, $[24, 26]^\circ\text{C}$ estate, custom).
    - **Export Vector 1-Click**: Esportazione SVG diretta alle dimensioni fisiche esatte.
-3. **Eseguibile Release Windows Generato**:
-   - Compilazione ottimizzata con toolchain GNU: [`ChartMate.exe`](file:///c:/Users/rober/Documents/GitHub/ChartMate/ChartMate.exe) pronto nella cartella principale (**24.68 MB**), testato e funzionante.
+3. **Persistenza Progetti e Memoria Stato Grafici (Step 3 Completato)**:
+   - **Salvataggio JSON Nativo Portabile (`projects.json`)**: Implementati i comandi Rust `load_projects_store` e `save_projects_store` in `lib.rs`, con risoluzione automatica della directory dell'eseguibile `ChartMate.exe`.
+   - **Gestione Progetti Completa (Tab 1)**: Selettore progetti salvati, creazione nuovo progetto, salvataggio con nome ed eliminazione, con persistenza del percorso file e dei parametri del parser.
+   - **Memoria Grafico Singolo / Canvas (Tab 2)**: Selettore canvas del progetto attivo, salvataggio al volo, creazione nuovo canvas ed eliminazione. Ripristino al 100% di tutti i 17 parametri grafici (assi X e Y1-Y4, serie, tratteggi, colori, timeframe, proporzioni, annotazioni e soglie).
+4. **Eseguibile Release Windows Generato**:
+   - Compilazione ottimizzata con toolchain GNU: [`ChartMate.exe`](file:///c:/Users/rober/Documents/GitHub/ChartMate/ChartMate.exe) pronto nella cartella principale (**25.82 MB**), testato e funzionante con memoria persistente.
 
 ---
 

@@ -190,6 +190,57 @@ fn read_dataset_sample(file_path: String, options: Option<ParseOptions>) -> Resu
     })
 }
 
+fn get_projects_file_path() -> std::path::PathBuf {
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(exe_dir) = exe_path.parent() {
+            let p = exe_dir.join("projects.json");
+            if p.exists() || exe_dir.join("ChartMate.exe").exists() {
+                return p;
+            }
+        }
+    }
+    if let Ok(cwd) = std::env::current_dir() {
+        let p = cwd.join("projects.json");
+        if p.exists() {
+            return p;
+        }
+        if let Some(parent) = cwd.parent() {
+            let parent_p = parent.join("projects.json");
+            if parent_p.exists() || parent.join("ChartMate.exe").exists() {
+                return parent_p;
+            }
+        }
+        return p;
+    }
+    std::path::PathBuf::from("projects.json")
+}
+
+#[tauri::command]
+fn load_projects_store() -> Result<serde_json::Value, String> {
+    let path = get_projects_file_path();
+    if !path.exists() {
+        return Ok(serde_json::json!({}));
+    }
+    let content = std::fs::read_to_string(&path)
+        .map_err(|e| format!("Errore lettura file projects.json ({}): {}", path.display(), e))?;
+    if content.trim().is_empty() {
+        return Ok(serde_json::json!({}));
+    }
+    let val: serde_json::Value = serde_json::from_str(&content)
+        .map_err(|e| format!("Errore decodifica JSON da projects.json: {}", e))?;
+    Ok(val)
+}
+
+#[tauri::command]
+fn save_projects_store(data: serde_json::Value) -> Result<(), String> {
+    let path = get_projects_file_path();
+    let json_str = serde_json::to_string_pretty(&data)
+        .map_err(|e| format!("Errore serializzazione progetti: {}", e))?;
+    std::fs::write(&path, json_str)
+        .map_err(|e| format!("Errore scrittura file projects.json ({}): {}", path.display(), e))?;
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -205,7 +256,11 @@ pub fn run() {
             }
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![read_dataset_sample])
+        .invoke_handler(tauri::generate_handler![
+            read_dataset_sample,
+            load_projects_store,
+            save_projects_store
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

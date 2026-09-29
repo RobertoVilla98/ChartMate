@@ -47,6 +47,20 @@ Per risolvere definitivamente i colli di bottiglia legati alla distribuzione su 
   - **Ingestione Completa dei Dataset**: Rimosso il limite forzato di 100 righe da `read_dataset_sample` in Rust e da `loadFile` in TypeScript (supporto fino a centinaia di migliaia di righe), mantenendo lo slicing a 50 righe solo per la tabella di anteprima HTML raw.
   - **Eseguibile Windows Aggiornato**: Rigenerato [`ChartMate.exe`](file:///c:/Users/rober/Documents/GitHub/ChartMate/ChartMate.exe) (**24.68 MB**) pronto all'avvio con doppio clic, integrato con `WebView2Loader.dll`.
   - **Pulizia Disco Eseguita**: Eseguito `cargo clean` con recupero immediato di 1.6 GiB di file intermedi.
+- **Step 3 Completato: Persistenza di Progetti e Memoria Stato Singoli Grafici (Canvas)**:
+  - **Architettura di Salvataggio Standalone (`projects.json`)**:
+    - Implementati i comandi Tauri/Rust `load_projects_store` e `save_projects_store` in [`tauri-app/src-tauri/src/lib.rs`](file:///c:/Users/rober/Documents/GitHub/ChartMate/tauri-app/src-tauri/src/lib.rs).
+    - Risoluzione intelligente del percorso: il file `projects.json` viene automaticamente localizzato e salvato nella cartella dell'eseguibile (`ChartMate.exe`) o nella cartella di lavoro radice, garantendo completa portabilità senza database esterni.
+  - **Gestione Progetti (Tab 1 Sidebar)**:
+    - Selettore a tendina per caricare istantaneamente qualsiasi progetto precedentemente salvato.
+    - Input del nome progetto con pulsanti dedicati: `💾 Salva Progetto`, `+ Nuovo` e `🗑️ Elimina`.
+    - Ripristino fedele di tutti i parametri di ingestione: percorso file locale/SharePoint, delimitatore colonna, formato decimale, flag timestamp, colonna data/ora e stringa formato datetime.
+  - **Memoria di Stato del Singolo Grafico / Canvas (Tab 2 Sidebar)**:
+    - Selettore a tendina dei canvas salvati nel progetto attivo (`📊 Canvas_1`, ecc.).
+    - Pulsanti `💾 Salva`, `+ Salva come Nuovo` ed `✕ Elimina`.
+    - **Ripristino Grafico al 100% (17 Parametri)**: serializzazione e deserializzazione impeccabile di variabile X, tracce Y multiple con relative tipologie (linee, scatter, barre, aree), colori personalizzati, stili di tratteggio, assegnazione assi ($Y_1 - Y_4$), titoli assi scientifici, finestre timeframe, proporzioni/preset WYSIWYG, tipografia e annotazioni intelligenti (comfort band e tracker picchi/minimi).
+    - **Auto-Save al Cambio Canvas**: passaggio istantaneo tra grafici del medesimo progetto senza rischio di perdere modifiche intermedie.
+  - **Eseguibile Windows Aggiornato**: Rigenerato [`ChartMate.exe`](file:///c:/Users/rober/Documents/GitHub/ChartMate/ChartMate.exe) (**25.82 MB**) testato e funzionante con memoria persistente.
 - **Backup Completo Preservato**:
   - Il precedente codebase Python/Dash è stato interamente preservato e versionato sul branch Git `legacy-python-dash`.
 

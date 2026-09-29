@@ -30,11 +30,54 @@ interface TraceConfig {
   lineDash: 'solid' | 'dash' | 'dot';
 }
 
+interface CanvasConfig {
+  name: string;
+  selected_x: string;
+  traces: TraceConfig[];
+  y1_title: string;
+  y2_title: string;
+  y3_title: string;
+  y4_title: string;
+  timeframe_mode: 'all' | 'day' | 'week' | 'month' | 'custom';
+  start_date: string;
+  end_date: string;
+  preset: 'single' | 'double' | 'square' | 'custom';
+  width_cm: number;
+  height_cm: number;
+  font_family: string;
+  font_size: number;
+  peak_mode: 'none' | 'global' | 'daily' | 'weekly';
+  comfort_band: boolean;
+  comfort_season: 'winter' | 'summer' | 'custom';
+  comfort_min: number;
+  comfort_max: number;
+}
+
+interface ProjectConfig {
+  name: string;
+  file_path: string;
+  separator: string;
+  decimal: string;
+  has_timestamp: boolean;
+  timestamp_col: string;
+  timestamp_format: string;
+  active_canvas?: string;
+  updated_at?: string;
+  canvases: Record<string, CanvasConfig>;
+}
+
+type ProjectsStore = Record<string, ProjectConfig>;
+
 interface AppState {
   currentTab: 'data' | 'canvas' | 'multi';
   filePath: string | null;
   dataset: DatasetPreview | null;
   
+  // Project & Canvas Persistence
+  activeProject: string;
+  activeCanvas: string;
+  projectsStore: ProjectsStore;
+
   // Ingestion & Parsing Config
   separator: string;
   decimal: string;
@@ -79,6 +122,9 @@ const state: AppState = {
   currentTab: 'data',
   filePath: null,
   dataset: null,
+  activeProject: '',
+  activeCanvas: 'Canvas_1',
+  projectsStore: {},
   separator: 'auto',
   decimal: '.',
   hasTimestamp: true,
@@ -147,6 +193,51 @@ function renderApp() {
       <!-- VIEW 1: DATA INGESTION (Source, Delimiters & Preview Table) -->
       <div class="view-panel ${state.currentTab === 'data' ? 'active' : ''}" id="view-data">
         <aside class="sidebar">
+
+          <!-- 0. PROGETTO & SESSIONE -->
+          <section class="sidebar-section" style="background: #f8fafc; border-bottom: 2px solid var(--border);">
+            <div class="sidebar-title">
+              <span>Progetto & Sessione</span>
+              ${state.activeProject ? `
+                <span class="cm-badge cm-badge-emerald">Attivo: ${state.activeProject}</span>
+              ` : `
+                <span class="cm-badge cm-badge-sky">Nuovo</span>
+              `}
+            </div>
+
+            <div class="form-group" style="margin-bottom: 8px;">
+              <label class="form-label" style="font-size: 0.74rem;">Carica Progetto Esistente</label>
+              <select class="form-select" id="sel-load-project" style="font-size: 0.8rem;">
+                <option value="">-- Seleziona Progetto Salvato --</option>
+                ${Object.keys(state.projectsStore).map(p => `
+                  <option value="${p}" ${p === state.activeProject ? 'selected' : ''}>
+                    📁 ${p} (${Object.keys(state.projectsStore[p].canvases || {}).length} grafici)
+                  </option>
+                `).join('')}
+              </select>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 8px;">
+              <label class="form-label" style="font-size: 0.74rem;">Nome Progetto</label>
+              <input type="text" class="form-input" id="inp-project-name" value="${state.activeProject}" placeholder="es. Monitoraggio IEQ Settembre" style="font-size: 0.82rem;" />
+            </div>
+
+            <div style="display: flex; gap: 6px;">
+              <button class="btn btn-primary" id="btn-save-project" style="flex: 1; font-size: 0.76rem; padding: 5px 8px;">
+                💾 Salva Progetto
+              </button>
+              ${state.activeProject ? `
+                <button class="btn btn-secondary" id="btn-new-project" style="font-size: 0.76rem; padding: 5px 8px;" title="Crea un nuovo progetto vuoto">
+                  + Nuovo
+                </button>
+                <button class="btn btn-secondary" id="btn-delete-project" style="font-size: 0.76rem; padding: 5px 8px; color: var(--rose);" title="Elimina questo progetto">
+                  🗑️
+                </button>
+              ` : ''}
+            </div>
+          </section>
+
+          <!-- 1. LOCAL / SHAREPOINT FILE -->
           <section class="sidebar-section">
             <div class="sidebar-title">
               <span>Local / SharePoint File</span>
@@ -253,6 +344,32 @@ function renderApp() {
       <!-- VIEW 2: SINGLE CANVAS STUDIO (Trace Styler, Multi-Axis Y1-Y4, Advanced Annotations) -->
       <div class="view-panel ${state.currentTab === 'canvas' ? 'active' : ''}" id="view-canvas">
         <aside class="sidebar">
+
+          <!-- 0. CANVAS / GRAFICI SALVATI -->
+          <section class="sidebar-section" style="background: #f8fafc; border-bottom: 2px solid var(--border);">
+            <div class="sidebar-title">
+              <span>Grafici del Progetto (Canvas)</span>
+              <span class="cm-badge cm-badge-emerald">${state.activeCanvas || 'Canvas_1'}</span>
+            </div>
+
+            <div style="display: flex; gap: 6px; margin-bottom: 8px;">
+              <select class="form-select" id="sel-canvas" style="flex: 1; font-size: 0.8rem; font-weight: 600; padding: 4px 8px;">
+                ${renderCanvasSelectOptions()}
+              </select>
+              <button class="btn btn-primary" id="btn-save-canvas" style="font-size: 0.76rem; padding: 4px 10px; white-space: nowrap;" title="Salva modifiche a questo canvas">
+                💾 Salva
+              </button>
+            </div>
+
+            <div style="display: flex; gap: 6px;">
+              <button class="btn btn-secondary" id="btn-new-canvas" style="flex: 1; font-size: 0.74rem; padding: 4px 6px;">
+                + Salva come Nuovo
+              </button>
+              <button class="btn btn-secondary" id="btn-delete-canvas" style="font-size: 0.74rem; padding: 4px 6px; color: var(--rose);" title="Elimina questo canvas">
+                ✕ Elimina
+              </button>
+            </div>
+          </section>
           
           <!-- 1. TIMEFRAME SELECTOR -->
           ${state.hasTimestamp ? `
@@ -464,6 +581,17 @@ function renderAddColumnOptions(): string {
   const cols = state.dataset.columns.filter(c => c !== state.selectedX);
   const displayCols = cols.length > 0 ? cols : state.dataset.columns;
   return displayCols.map(c => `<option value="${c}">${c}</option>`).join('');
+}
+
+function renderCanvasSelectOptions(): string {
+  const project = state.activeProject ? state.projectsStore[state.activeProject] : null;
+  const canvases = project?.canvases || {};
+  const keys = Object.keys(canvases);
+  if (keys.length === 0) {
+    const current = state.activeCanvas || 'Canvas_1';
+    return `<option value="${current}" selected>📊 ${current}</option>`;
+  }
+  return keys.map(k => `<option value="${k}" ${k === state.activeCanvas ? 'selected' : ''}>📊 ${k}</option>`).join('');
 }
 
 function renderTraceCards(): string {
@@ -820,6 +948,274 @@ function attachEventListeners() {
       filename: `ChartMate_${state.preset}_figure`
     });
   });
+
+  // Project Management Listeners
+  document.getElementById('sel-load-project')?.addEventListener('change', async (e) => {
+    const projName = (e.target as HTMLSelectElement).value;
+    if (projName) {
+      await loadProject(projName);
+    }
+  });
+
+  document.getElementById('btn-save-project')?.addEventListener('click', async () => {
+    const inputEl = document.getElementById('inp-project-name') as HTMLInputElement | null;
+    const name = inputEl?.value.trim() || state.activeProject;
+    await saveCurrentProject(name);
+  });
+
+  document.getElementById('btn-new-project')?.addEventListener('click', () => {
+    state.activeProject = '';
+    state.activeCanvas = 'Canvas_1';
+    renderApp();
+  });
+
+  document.getElementById('btn-delete-project')?.addEventListener('click', async () => {
+    if (state.activeProject) {
+      await deleteProject(state.activeProject);
+    }
+  });
+
+  // Canvas Management Listeners
+  document.getElementById('sel-canvas')?.addEventListener('change', async (e) => {
+    const canvasName = (e.target as HTMLSelectElement).value;
+    if (canvasName) {
+      await loadCanvas(canvasName);
+    }
+  });
+
+  document.getElementById('btn-save-canvas')?.addEventListener('click', async () => {
+    await saveCanvas(state.activeCanvas || 'Canvas_1');
+  });
+
+  document.getElementById('btn-new-canvas')?.addEventListener('click', async () => {
+    const existingCount = Object.keys(state.projectsStore[state.activeProject]?.canvases || {}).length;
+    const newName = prompt('Inserisci il nome del nuovo Canvas:', `Canvas_${existingCount + 1}`);
+    if (newName && newName.trim()) {
+      state.activeCanvas = newName.trim();
+      await saveCanvas(newName.trim());
+    }
+  });
+
+  document.getElementById('btn-delete-canvas')?.addEventListener('click', async () => {
+    if (state.activeCanvas) {
+      await deleteCanvas(state.activeCanvas);
+    }
+  });
+}
+
+function serializeCanvasConfig(name: string): CanvasConfig {
+  return {
+    name,
+    selected_x: state.selectedX,
+    traces: JSON.parse(JSON.stringify(state.traces)),
+    y1_title: state.y1Title,
+    y2_title: state.y2Title,
+    y3_title: state.y3Title,
+    y4_title: state.y4Title,
+    timeframe_mode: state.timeframeMode,
+    start_date: state.startDate,
+    end_date: state.endDate,
+    preset: state.preset,
+    width_cm: state.widthCm,
+    height_cm: state.heightCm,
+    font_family: state.fontFamily,
+    font_size: state.fontSize,
+    peak_mode: state.peakMode,
+    comfort_band: state.comfortBand,
+    comfort_season: state.comfortSeason,
+    comfort_min: state.comfortMin,
+    comfort_max: state.comfortMax,
+  };
+}
+
+function applyCanvasConfig(cfg: CanvasConfig) {
+  state.activeCanvas = cfg.name;
+  state.selectedX = cfg.selected_x || '';
+  state.traces = cfg.traces ? JSON.parse(JSON.stringify(cfg.traces)) : [];
+  state.y1Title = cfg.y1_title || '';
+  state.y2Title = cfg.y2_title || '';
+  state.y3Title = cfg.y3_title || '';
+  state.y4Title = cfg.y4_title || '';
+  state.timeframeMode = cfg.timeframe_mode || 'all';
+  state.startDate = cfg.start_date || '';
+  state.endDate = cfg.end_date || '';
+  state.preset = cfg.preset || 'double';
+  state.widthCm = cfg.width_cm || 17.0;
+  state.heightCm = cfg.height_cm || 9.5;
+  state.fontFamily = cfg.font_family || 'Outfit, sans-serif';
+  state.fontSize = cfg.font_size || 11;
+  state.peakMode = cfg.peak_mode || 'none';
+  state.comfortBand = !!cfg.comfort_band;
+  state.comfortSeason = cfg.comfort_season || 'winter';
+  state.comfortMin = cfg.comfort_min ?? 20.0;
+  state.comfortMax = cfg.comfort_max ?? 22.0;
+}
+
+async function fetchProjectsStore() {
+  try {
+    const res = await invoke<ProjectsStore>('load_projects_store');
+    state.projectsStore = res || {};
+  } catch (err) {
+    console.error('Failed to load projects store:', err);
+    state.projectsStore = {};
+  }
+}
+
+async function persistProjectsStore() {
+  try {
+    await invoke('save_projects_store', { data: state.projectsStore });
+  } catch (err) {
+    console.error('Failed to save projects store:', err);
+    alert(`Errore nel salvataggio dei progetti: ${err}`);
+  }
+}
+
+async function saveCurrentProject(projectName?: string) {
+  let name = (projectName || state.activeProject || '').trim();
+  if (!name) {
+    const prompted = prompt('Inserisci un nome per il progetto:', 'Nuovo_Progetto_IEQ');
+    if (!prompted || !prompted.trim()) return;
+    name = prompted.trim();
+  }
+
+  state.activeProject = name;
+
+  if (!state.projectsStore[name]) {
+    state.projectsStore[name] = {
+      name,
+      file_path: state.filePath || '',
+      separator: state.separator,
+      decimal: state.decimal,
+      has_timestamp: state.hasTimestamp,
+      timestamp_col: state.timestampCol,
+      timestamp_format: state.timestampFormat,
+      active_canvas: state.activeCanvas || 'Canvas_1',
+      updated_at: new Date().toISOString(),
+      canvases: {}
+    };
+  } else {
+    state.projectsStore[name].file_path = state.filePath || '';
+    state.projectsStore[name].separator = state.separator;
+    state.projectsStore[name].decimal = state.decimal;
+    state.projectsStore[name].has_timestamp = state.hasTimestamp;
+    state.projectsStore[name].timestamp_col = state.timestampCol;
+    state.projectsStore[name].timestamp_format = state.timestampFormat;
+    state.projectsStore[name].updated_at = new Date().toISOString();
+  }
+
+  // Save current active canvas into project canvases
+  const currentCanvasName = state.activeCanvas || 'Canvas_1';
+  state.projectsStore[name].canvases[currentCanvasName] = serializeCanvasConfig(currentCanvasName);
+  state.projectsStore[name].active_canvas = currentCanvasName;
+
+  await persistProjectsStore();
+  renderApp();
+}
+
+async function loadProject(projectName: string) {
+  const p = state.projectsStore[projectName];
+  if (!p) return;
+
+  state.activeProject = projectName;
+  state.separator = p.separator || 'auto';
+  state.decimal = p.decimal || '.';
+  state.hasTimestamp = !!p.has_timestamp;
+  state.timestampCol = p.timestamp_col || '';
+  state.timestampFormat = p.timestamp_format || '%Y-%m-%d %H:%M:%S';
+
+  // Determine active canvas to load
+  const canvasKeys = Object.keys(p.canvases || {});
+  const targetCanvasName = p.active_canvas && p.canvases[p.active_canvas]
+    ? p.active_canvas
+    : (canvasKeys.length > 0 ? canvasKeys[0] : 'Canvas_1');
+
+  if (p.canvases && p.canvases[targetCanvasName]) {
+    applyCanvasConfig(p.canvases[targetCanvasName]);
+  } else {
+    state.activeCanvas = targetCanvasName;
+  }
+
+  if (p.file_path) {
+    await loadFile(p.file_path, false);
+  } else {
+    state.filePath = null;
+    state.dataset = null;
+    renderApp();
+  }
+}
+
+async function deleteProject(projectName: string) {
+  if (!confirm(`Sei sicuro di voler eliminare il progetto "${projectName}" e tutti i relativi grafici?`)) {
+    return;
+  }
+  delete state.projectsStore[projectName];
+  if (state.activeProject === projectName) {
+    state.activeProject = '';
+  }
+  await persistProjectsStore();
+  renderApp();
+}
+
+async function saveCanvas(canvasName: string) {
+  if (!state.activeProject) {
+    const projName = prompt('Per salvare un grafico, crea prima un Progetto. Nome progetto:', 'Progetto_1');
+    if (!projName || !projName.trim()) return;
+    state.activeProject = projName.trim();
+    state.projectsStore[state.activeProject] = {
+      name: state.activeProject,
+      file_path: state.filePath || '',
+      separator: state.separator,
+      decimal: state.decimal,
+      has_timestamp: state.hasTimestamp,
+      timestamp_col: state.timestampCol,
+      timestamp_format: state.timestampFormat,
+      active_canvas: canvasName,
+      updated_at: new Date().toISOString(),
+      canvases: {}
+    };
+  }
+
+  state.activeCanvas = canvasName;
+  state.projectsStore[state.activeProject].canvases[canvasName] = serializeCanvasConfig(canvasName);
+  state.projectsStore[state.activeProject].active_canvas = canvasName;
+  state.projectsStore[state.activeProject].updated_at = new Date().toISOString();
+
+  await persistProjectsStore();
+  renderApp();
+}
+
+async function loadCanvas(canvasName: string) {
+  if (!state.activeProject || !state.projectsStore[state.activeProject]) return;
+  if (state.activeCanvas && state.projectsStore[state.activeProject].canvases[state.activeCanvas]) {
+    state.projectsStore[state.activeProject].canvases[state.activeCanvas] = serializeCanvasConfig(state.activeCanvas);
+  }
+  const cfg = state.projectsStore[state.activeProject].canvases[canvasName];
+  if (cfg) {
+    applyCanvasConfig(cfg);
+    state.projectsStore[state.activeProject].active_canvas = canvasName;
+    await persistProjectsStore();
+    renderApp();
+  }
+}
+
+async function deleteCanvas(canvasName: string) {
+  if (!state.activeProject || !state.projectsStore[state.activeProject]) return;
+  const proj = state.projectsStore[state.activeProject];
+  const keys = Object.keys(proj.canvases);
+  if (keys.length <= 1) {
+    alert('Non puoi eliminare l\'unico grafico presente nel progetto.');
+    return;
+  }
+
+  if (!confirm(`Sei sicuro di voler eliminare il canvas "${canvasName}"?`)) return;
+
+  delete proj.canvases[canvasName];
+  const remaining = Object.keys(proj.canvases);
+  const nextCanvas = remaining[0];
+  proj.active_canvas = nextCanvas;
+  applyCanvasConfig(proj.canvases[nextCanvas]);
+  await persistProjectsStore();
+  renderApp();
 }
 
 function toISODate(str: string): string {
@@ -892,7 +1288,7 @@ async function handleFileSelect() {
   }
 }
 
-async function loadFile(path: string) {
+async function loadFile(path: string, resetCanvas: boolean = true) {
   try {
     state.filePath = path;
     const options: ParseOptions = {
@@ -906,49 +1302,51 @@ async function loadFile(path: string) {
     const preview = await invoke<DatasetPreview>('read_dataset_sample', { filePath: path, options });
     state.dataset = preview;
 
-    // Automatic Metadata Assignment
-    if (preview.suggested_ts_col) {
-      state.timestampCol = preview.suggested_ts_col;
-      state.selectedX = preview.suggested_ts_col;
-      state.hasTimestamp = true;
-      calculateTimeframeDates('all');
-    } else if (preview.columns.length > 0) {
-      state.hasTimestamp = false;
-      state.timestampCol = '';
-      state.timeframeMode = 'all';
-      state.startDate = '';
-      state.endDate = '';
-      state.selectedX = preview.columns[0];
-    }
+    if (resetCanvas) {
+      // Automatic Metadata Assignment
+      if (preview.suggested_ts_col) {
+        state.timestampCol = preview.suggested_ts_col;
+        state.selectedX = preview.suggested_ts_col;
+        state.hasTimestamp = true;
+        calculateTimeframeDates('all');
+      } else if (preview.columns.length > 0) {
+        state.hasTimestamp = false;
+        state.timestampCol = '';
+        state.timeframeMode = 'all';
+        state.startDate = '';
+        state.endDate = '';
+        state.selectedX = preview.columns[0];
+      }
 
-    if (preview.suggested_ts_format) {
-      state.timestampFormat = preview.suggested_ts_format;
-    }
+      if (preview.suggested_ts_format) {
+        state.timestampFormat = preview.suggested_ts_format;
+      }
 
-    // Default Traces Setup
-    state.traces = [];
-    if (preview.columns.length > 1) {
-      state.traces.push({
-        column: preview.columns[1],
-        axis: 'y1',
-        chartType: 'line',
-        color: '#000000',
-        lineWidth: 2.0,
-        lineDash: 'solid'
-      });
-      state.y1Title = preview.columns[1];
-    }
+      // Default Traces Setup
+      state.traces = [];
+      if (preview.columns.length > 1) {
+        state.traces.push({
+          column: preview.columns[1],
+          axis: 'y1',
+          chartType: 'line',
+          color: '#000000',
+          lineWidth: 2.0,
+          lineDash: 'solid'
+        });
+        state.y1Title = preview.columns[1];
+      }
 
-    if (preview.columns.length > 2) {
-      state.traces.push({
-        column: preview.columns[2],
-        axis: 'y2',
-        chartType: 'line',
-        color: '#0284c7',
-        lineWidth: 1.8,
-        lineDash: 'dash'
-      });
-      state.y2Title = preview.columns[2];
+      if (preview.columns.length > 2) {
+        state.traces.push({
+          column: preview.columns[2],
+          axis: 'y2',
+          chartType: 'line',
+          color: '#0284c7',
+          lineWidth: 1.8,
+          lineDash: 'dash'
+        });
+        state.y2Title = preview.columns[2];
+      }
     }
 
     renderApp();
@@ -1293,5 +1691,10 @@ function calculatePeakAnnotations(xVals: any[], yVals: (number | null)[], mode: 
   }
 }
 
-// Boot application
-renderApp();
+// Boot application with persistent projects store
+async function initApp() {
+  await fetchProjectsStore();
+  renderApp();
+}
+
+initApp();

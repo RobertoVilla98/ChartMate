@@ -34,55 +34,48 @@ It is designed for researchers, engineers, and data scientists (specifically acr
 
 ```
 ChartMate/
-├── app.py                      # Main entrypoint, Velth header, navbar & page routing
-├── requirements.txt            # Dependencies (polars, dash, dash-bootstrap-components, etc.)
+├── ChartMate.exe               # Standalone lightweight Windows Native Executable (Tauri v2 + Rust, ~25 MB)
+├── sample_building_data.csv    # Sample engineering & IEQ sensor dataset for instant testing
+├── projects.json               # Standalone JSON database for projects and saved canvas configurations
 ├── README.md                   # Public repository documentation
 ├── PROJECT_STATUS.md           # Live change log, accomplished milestones, backlog & roadmap
 ├── AGENTS.md                   # AI agent onboarding & codebase manual (this file)
 ├── GEMINI.md                   # Gemini / Antigravity agent context entrypoint
 ├── ChartMate_Structure.txt     # Plaintext directory structure
-├── build_exe.py                # PyInstaller build script for standalone executable
 │
-├── assets/                     # Static files automatically served by Dash
-│   ├── style.css               # Velth Light Mode Design System tokens & CSS overrides
-│   └── logo.svg                # Vector SVG logo (L-shaped XY axes + waving mate character)
+├── tauri-app/                  # Modern Native Desktop Core Architecture
+│   ├── package.json            # Frontend tools: Vite, TypeScript, Plotly.js, PapaParse, SheetJS
+│   ├── index.html              # Clean desktop window entrypoint
+│   ├── src/                    # Reactive Frontend Architecture
+│   │   ├── main.ts             # ChartMate desktop controller (state, multi-axis, presets, Plotly engine, projects)
+│   │   └── style.css           # ChartMate Clean Scientific Design System (Outfit, JetBrains Mono, Emerald)
+│   │
+│   └── src-tauri/              # Ultra-fast Rust Native Backend
+│       ├── Cargo.toml          # Rust dependencies (tauri v2, calamine for Excel, csv, dialog, fs)
+│       ├── tauri.conf.json     # Window, capabilities, HiDPI scaling & filesystem permissions
+│       ├── capabilities/       # Granular OS permissions (open dialog, direct local/SharePoint file read)
+│       └── src/
+│           ├── main.rs         # Native desktop bootstrap
+│           └── lib.rs          # Native high-speed dataset reader (CSV, TSV, Excel) & projects store persistence
 │
-├── components/                 # Reusable UI Widgets & Controllers
-│   ├── __init__.py
-│   ├── export_toolbar.py       # Publication Presets, CM dimensions, DPI, and format selector
-│   ├── annotation_panel.py     # Smart Labelling, Peak Tracker, Thresholds, Target Bands, Stats
-│   ├── trace_styler.py         # Per-trace color picker, line styles, opacity, and z-order
-│   ├── axis_panel.py           # Multi-axis (X, Y1, Y2, Y3), chart types, grids, limits, timeframe
-│   ├── grid_navigator.py       # MultiPlot matrix navigator, cell mapping & Topology Presets
-│   └── logo.py                 # Vector SVG logo rendering component
-│
-├── pages/                      # Slender Application Page Controllers (Dash Multi-Page)
-│   ├── home.py                 # Project management, file ingestion, separator/decimal config, preview
-│   ├── canvas.py               # Single Chart Studio (10 chart types, 3 Y-axes, smart labelling)
-│   ├── multi_plot.py           # MultiPlot Subplot Matrix Studio (Topology presets, lettering, spacing)
-│   └── maps.py                 # Maps GIS Studio (ESRI Satellite, OSM, Bubble, Density, GPS tracks)
-│
-├── utils/                      # Core Processing & Engine Modules
-│   ├── data_handler.py         # Polars data ingestion, separator handling & export scaling
-│   ├── storage.py              # Persistent JSON CRUD operations for projects.json
-│   ├── chart_engine.py         # Decoupled Plotly scientific rendering engine (Charts, MultiPlot, Maps)
-│   └── projects.json           # Local JSON database for projects, canvases, and multiplots
-│
-└── docs/                       # Extended Documentation
-    └── PROJECT_OVERVIEW.md     # Architectural specification & system diagrams
+└── legacy-python-dash/         # (Git Branch) Complete original Python/Dash codebase preserved 100%
 ```
 
 ---
 
 ## 🚀 4. Current State: What Has Been Built & Working
 
-### 1. Data Ingestion & Project Management ([`pages/home.py`](file:///c:/Users/rober/Documents/GitHub/ChartMate/pages/home.py))
-- File ingestion with OS file dialog (`tkinter`).
-- Robust delimiter parsing (`,`, `;`, `\t`), decimal comma/dot conversion, timestamp column detection and format strings.
-- Interactive Polars preview table.
-- Project profile saving, loading, updating (with overwrite protection modal), and deletion.
+### 1. Data Ingestion & Project Management ([`tauri-app/src/main.ts`](file:///c:/Users/rober/Documents/GitHub/ChartMate/tauri-app/src/main.ts) & [`tauri-app/src-tauri/src/lib.rs`](file:///c:/Users/rober/Documents/GitHub/ChartMate/tauri-app/src-tauri/src/lib.rs))
+- Native OS file dialog (`tauri-plugin-dialog`) and drag-and-drop support.
+- Direct filesystem and SharePoint path access without data copying or upload limits.
+- High-speed parsing in Rust (`csv`, `calamine`) with automatic separator detection (`,`, `;`, `\t`), European decimal comma/dot conversion, and timestamp column identification.
+- Interactive raw data preview table with schema validation.
+- **Projects Store Persistence**: Portable JSON database (`projects.json`) saving file paths, delimiters, decimals, timestamp settings, and project collections.
 
-### 2. Single Chart Studio ([`pages/canvas.py`](file:///c:/Users/rober/Documents/GitHub/ChartMate/pages/canvas.py))
+### 2. Single Chart Studio & Canvas Persistence ([`tauri-app/src/main.ts`](file:///c:/Users/rober/Documents/GitHub/ChartMate/tauri-app/src/main.ts))
+- **Canvas Persistence**: Full state serialization/deserialization for individual charts within a project. Switching canvases auto-saves changes; saving or cloning canvases restores all 17 graphical parameters.
+- **Up to 4 Independent Y-Axes** ($Y_1, Y_2, Y_3, Y_4$) with independent scaling, titles, colors, and dynamic offset positioning.
+- **Per-Trace Customization**: Dedicated dropdown for adding series, per-card variable selector dropdown, individual chart types (line, scatter, bar, area), dashed styles (solid, dash, dot), and color picker.
 - **Up to 3 Independent Y-Axes** ($Y_1, Y_2, Y_3$) with dedicated scaling, titles, and grid controls.
 - **10 Scientific Chart Types Supported**:
   1. `line`: Continuous lines with `Connect Gaps` option.

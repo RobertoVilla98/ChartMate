@@ -18,6 +18,7 @@ ChartMate/
 │           └── lib.rs          # Native high-speed dataset reader (CSV, TSV, Excel) & delimiter detector
 │
 ├── sample_building_data.csv    # Sample engineering & IEQ sensor dataset for instant testing
+├── projects.json               # Standalone JSON database for projects and saved canvas configurations
 │
 ├── legacy-python-dash/         # (Git Branch) Complete original Python/Dash codebase preserved 100%
 │   ├── app.py                  # Original Dash multi-page server
