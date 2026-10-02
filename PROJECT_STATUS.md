@@ -60,7 +60,7 @@ Per risolvere definitivamente i colli di bottiglia legati alla distribuzione su 
     - Pulsanti `💾 Salva`, `+ Salva come Nuovo` ed `✕ Elimina`.
     - **Ripristino Grafico al 100% (17 Parametri)**: serializzazione e deserializzazione impeccabile di variabile X, tracce Y multiple con relative tipologie (linee, scatter, barre, aree), colori personalizzati, stili di tratteggio, assegnazione assi ($Y_1 - Y_4$), titoli assi scientifici, finestre timeframe, proporzioni/preset WYSIWYG, tipografia e annotazioni intelligenti (comfort band e tracker picchi/minimi).
     - **Auto-Save al Cambio Canvas**: passaggio istantaneo tra grafici del medesimo progetto senza rischio di perdere modifiche intermedie.
-  - **Eseguibile Windows Aggiornato**: Rigenerato [`ChartMate.exe`](file:///c:/Users/rober/Documents/GitHub/ChartMate/ChartMate.exe) (**25.82 MB**) testato e funzionante con memoria persistente.
+  - **Eseguibile Windows Release v0.1**: Rigenerato [`ChartMate.exe`](file:///c:/Users/rober/Documents/GitHub/ChartMate/ChartMate.exe) e preparato il binario di release `ChartMate-v0.1-windows-x64.exe` (**25.82 MB**) testato e pronto per il rilascio GitHub Releases.
 - **Backup Completo Preservato**:
   - Il precedente codebase Python/Dash è stato interamente preservato e versionato sul branch Git `legacy-python-dash`.
 

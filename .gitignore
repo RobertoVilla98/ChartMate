@@ -8,5 +8,5 @@ projects.json
 *.pyd
 **/target/
 **/node_modules/
-ChartMate.exe
+*.exe
 WebView2Loader.dll
