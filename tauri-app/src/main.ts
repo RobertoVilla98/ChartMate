@@ -53,29 +53,107 @@ interface CanvasConfig {
   comfort_max: number;
 }
 
+interface SqlConnectionConfig {
+  host: string;
+  port: number;
+  database: string;
+  user: string;
+  password?: string;
+}
+
+interface SqlConnectionStatus {
+  connected: boolean;
+  latency_ms: number;
+  tables: string[];
+  message: string;
+}
+
+interface MultiPlotPanelConfig {
+  y1Col: string;
+  y1Type: 'line' | 'scatter' | 'bar' | 'area';
+  y1Color: string;
+  y2Col: string;
+  y2Color: string;
+  yTitle: string;
+}
+
+interface MultiPlotConfig {
+  name: string;
+  topology: '3x1' | '2x1' | '2x2' | '1x2';
+  share_x: boolean;
+  auto_lettering: boolean;
+  preset: 'single_stack' | 'double_stack' | 'square_grid' | 'custom';
+  width_cm: number;
+  height_cm: number;
+  panels: MultiPlotPanelConfig[];
+}
+
+interface MapConfig {
+  name: string;
+  mode: 'bubble' | 'density' | 'track';
+  basemap: 'carto-positron' | 'esri-satellite' | 'open-street-map' | 'carto-darkmatter' | 'opentopomap';
+  lat_col: string;
+  lon_col: string;
+  coord_format: 'decimal_degrees' | 'dms';
+  color_col: string;
+  size_col: string;
+  colorscale: 'Viridis' | 'Plasma' | 'RdBu' | 'YlOrRd' | 'Emerald';
+  cluster_enabled: boolean;
+  cluster_grid_deg: number;
+  cluster_agg: 'mean' | 'sum' | 'mode' | 'max' | 'min' | 'count';
+  preset: 'single' | 'double' | 'square' | 'custom';
+  width_cm: number;
+  height_cm: number;
+}
+
 interface ProjectConfig {
   name: string;
+  source_type?: 'file' | 'sql';
   file_path: string;
+  sql_config?: {
+    host: string;
+    port: number;
+    database: string;
+    user: string;
+    query: string;
+  };
+  geo_config?: {
+    lat_col: string;
+    lon_col: string;
+    coord_format: 'decimal_degrees' | 'dms';
+  };
   separator: string;
   decimal: string;
   has_timestamp: boolean;
   timestamp_col: string;
   timestamp_format: string;
   active_canvas?: string;
+  active_multiplot?: string;
+  active_map?: string;
   updated_at?: string;
   canvases: Record<string, CanvasConfig>;
+  multiplots?: Record<string, MultiPlotConfig>;
+  maps?: Record<string, MapConfig>;
 }
 
 type ProjectsStore = Record<string, ProjectConfig>;
 
 interface AppState {
-  currentTab: 'data' | 'canvas' | 'multi';
+  currentTab: 'data' | 'canvas' | 'multi' | 'maps';
+  sourceType: 'file' | 'sql';
   filePath: string | null;
   dataset: DatasetPreview | null;
-  
+
+  // SQL Connection State
+  sqlConfig: SqlConnectionConfig;
+  sqlQuery: string;
+  sqlStatus: SqlConnectionStatus | null;
+
   // Project & Canvas Persistence
   activeProject: string;
   activeCanvas: string;
+  activeMultiPlot: string;
+  activeMap: string;
   projectsStore: ProjectsStore;
 
   // Ingestion & Parsing Config
@@ -84,29 +162,34 @@ interface AppState {
   hasTimestamp: boolean;
   timestampCol: string;
   timestampFormat: string;
-  
+
+  // Geospatial Global Metadata
+  geoLatCol: string;
+  geoLonCol: string;
+  geoCoordFormat: 'decimal_degrees' | 'dms';
+
   // Timeframe Filtering
   timeframeMode: 'all' | 'day' | 'week' | 'month' | 'custom';
   startDate: string;
   endDate: string;
-  
+
   // Canvas Mapping & Axes
   selectedX: string;
   traces: TraceConfig[];
   preset: 'single' | 'double' | 'square' | 'custom';
   widthCm: number;
   heightCm: number;
-  
+
   // Axis Titles
   y1Title: string;
   y2Title: string;
   y3Title: string;
   y4Title: string;
-  
+
   // Typography
   fontFamily: string;
   fontSize: number;
-  
+
   // Smart Annotations
   peakMode: 'none' | 'global' | 'daily' | 'weekly';
   comfortBand: boolean;
@@ -114,22 +197,61 @@ interface AppState {
   comfortMin: number;
   comfortMax: number;
   comfortColor: string;
+
+  // MultiPlot Grid State
+  mpTopology: '3x1' | '2x1' | '2x2' | '1x2';
+  mpShareX: boolean;
+  mpAutoLettering: boolean;
+  mpPreset: 'single_stack' | 'double_stack' | 'square_grid' | 'custom';
+  mpWidthCm: number;
+  mpHeightCm: number;
+  mpPanels: MultiPlotPanelConfig[];
+
+  // Maps & Geo-Analytics State
+  mapMode: 'bubble' | 'density' | 'track';
+  mapBasemap: 'carto-positron' | 'esri-satellite' | 'open-street-map' | 'carto-darkmatter' | 'opentopomap';
+  mapColorCol: string;
+  mapSizeCol: string;
+  mapColorscale: 'Viridis' | 'Plasma' | 'RdBu' | 'YlOrRd' | 'Emerald';
+  mapClusterEnabled: boolean;
+  mapClusterGridDeg: number;
+  mapClusterAgg: 'mean' | 'sum' | 'mode' | 'max' | 'min' | 'count';
+  mapPreset: 'single' | 'double' | 'square' | 'custom';
+  mapWidthCm: number;
+  mapHeightCm: number;
+  mapLastClusterCount: number;
+  mapLastSummaryStat: string;
 }
 
 const DEFAULT_PALETTE = ['#000000', '#059669', '#0284c7', '#d97706', '#7c3aed', '#e11d48'];
 
 const state: AppState = {
   currentTab: 'data',
+  sourceType: 'file',
   filePath: null,
   dataset: null,
+  sqlConfig: {
+    host: 'localhost',
+    port: 3306,
+    database: 'monitoring_db',
+    user: 'root',
+    password: ''
+  },
+  sqlQuery: 'SELECT * FROM sensor_readings LIMIT 50000;',
+  sqlStatus: null,
   activeProject: '',
   activeCanvas: 'Canvas_1',
+  activeMultiPlot: 'MultiPlot_1',
+  activeMap: 'Mappa_1',
   projectsStore: {},
   separator: 'auto',
   decimal: '.',
   hasTimestamp: true,
   timestampCol: '',
   timestampFormat: '%Y-%m-%d %H:%M:%S',
+  geoLatCol: '',
+  geoLonCol: '',
+  geoCoordFormat: 'decimal_degrees',
   timeframeMode: 'all',
   startDate: '',
   endDate: '',
@@ -150,6 +272,31 @@ const state: AppState = {
   comfortMin: 20.0,
   comfortMax: 22.0,
   comfortColor: 'rgba(5, 150, 105, 0.12)',
+  mpTopology: '3x1',
+  mpShareX: true,
+  mpAutoLettering: true,
+  mpPreset: 'double_stack',
+  mpWidthCm: 17.0,
+  mpHeightCm: 13.5,
+  mpPanels: [
+    { y1Col: '', y1Type: 'line', y1Color: '#000000', y2Col: '', y2Color: '#0284c7', yTitle: 'Panel (a)' },
+    { y1Col: '', y1Type: 'line', y1Color: '#059669', y2Col: '', y2Color: '#d97706', yTitle: 'Panel (b)' },
+    { y1Col: '', y1Type: 'bar', y1Color: '#0284c7', y2Col: '', y2Color: '#7c3aed', yTitle: 'Panel (c)' },
+    { y1Col: '', y1Type: 'area', y1Color: '#d97706', y2Col: '', y2Color: '#e11d48', yTitle: 'Panel (d)' }
+  ],
+  mapMode: 'bubble',
+  mapBasemap: 'carto-positron',
+  mapColorCol: '',
+  mapSizeCol: '',
+  mapColorscale: 'Viridis',
+  mapClusterEnabled: false,
+  mapClusterGridDeg: 0.002,
+  mapClusterAgg: 'mean',
+  mapPreset: 'double',
+  mapWidthCm: 17.0,
+  mapHeightCm: 10.5,
+  mapLastClusterCount: 0,
+  mapLastSummaryStat: ''
 };
 
 const PRESETS = {
@@ -157,6 +304,20 @@ const PRESETS = {
   double: { w: 17.0, h: 9.5 },
   square: { w: 12.0, h: 12.0 },
   custom: { w: 17.0, h: 9.5 }
+};
+
+const MP_PRESETS = {
+  single_stack: { w: 8.5, h: 11.5 },
+  double_stack: { w: 17.0, h: 13.5 },
+  square_grid: { w: 14.0, h: 14.0 },
+  custom: { w: 17.0, h: 13.5 }
+};
+
+const MAP_PRESETS = {
+  single: { w: 8.5, h: 7.5 },
+  double: { w: 17.0, h: 10.5 },
+  square: { w: 12.0, h: 12.0 },
+  custom: { w: 17.0, h: 10.5 }
 };
 
 const appContainer = document.querySelector<HTMLDivElement>('#app')!;
@@ -178,6 +339,7 @@ function renderApp() {
         <button class="nav-btn ${state.currentTab === 'data' ? 'active' : ''}" id="tab-nav-data">1. Data Source & Parser</button>
         <button class="nav-btn ${state.currentTab === 'canvas' ? 'active' : ''}" id="tab-nav-canvas">2. Single Canvas Studio</button>
         <button class="nav-btn ${state.currentTab === 'multi' ? 'active' : ''}" id="tab-nav-multi">3. MultiPlot Grid</button>
+        <button class="nav-btn ${state.currentTab === 'maps' ? 'active' : ''}" id="tab-nav-maps">4. Maps & Geo Studio</button>
       </nav>
       <div>
         <button class="btn btn-primary" id="btn-export">
@@ -190,7 +352,7 @@ function renderApp() {
     </header>
 
     <div class="main-container">
-      <!-- VIEW 1: DATA INGESTION (Source, Delimiters & Preview Table) -->
+      <!-- VIEW 1: DATA INGESTION (Source, Parquet, SQL MySQL, Delimiters, Geo Coordinates & Preview Table) -->
       <div class="view-panel ${state.currentTab === 'data' ? 'active' : ''}" id="view-data">
         <aside class="sidebar">
 
@@ -237,53 +399,129 @@ function renderApp() {
             </div>
           </section>
 
-          <!-- 1. LOCAL / SHAREPOINT FILE -->
+          <!-- 1. SELETTORE SORGENTE DATI: FILE LOCALE (CSV/Excel/Parquet) vs SQL (MySQL) -->
           <section class="sidebar-section">
             <div class="sidebar-title">
-              <span>Local / SharePoint File</span>
-              <span class="cm-badge cm-badge-emerald">Direct I/O</span>
+              <span>Sorgente Dati & Connettori</span>
+              <span class="cm-badge cm-badge-emerald">${state.sourceType === 'sql' ? 'MySQL DB' : 'Direct I/O'}</span>
             </div>
-            <div class="dropzone" id="dropzone-data">
-              <div class="dropzone-icon">📂</div>
-              <div style="font-weight: 600; font-size: 0.88rem; color: #000000;">Drag file here</div>
-              <div style="font-size: 0.76rem; color: var(--text-muted); margin-top: 2px;">or click to browse local path</div>
+
+            <div class="source-toggle-group">
+              <button class="source-toggle-btn ${state.sourceType === 'file' ? 'active' : ''}" id="btn-src-file">
+                📂 File (CSV / Excel / Parquet)
+              </button>
+              <button class="source-toggle-btn ${state.sourceType === 'sql' ? 'active' : ''}" id="btn-src-sql">
+                🗄️ Database SQL (MySQL)
+              </button>
             </div>
-            ${state.filePath ? `
-              <div class="file-path-display">${state.filePath}</div>
-              <div style="margin-top: 6px; display: flex; justify-content: space-between; font-size: 0.75rem;">
-                <span>Total Rows: <strong>${state.dataset?.total_rows || 0}</strong></span>
-                <span class="cm-badge cm-badge-sky">${state.dataset?.detected_sep || 'Unknown'}</span>
+
+            ${state.sourceType === 'file' ? `
+              <div class="dropzone" id="dropzone-data">
+                <div class="dropzone-icon">📂</div>
+                <div style="font-weight: 600; font-size: 0.88rem; color: #000000;">Trascina file qui (CSV, XLSX, Parquet)</div>
+                <div style="font-size: 0.76rem; color: var(--text-muted); margin-top: 2px;">oppure clicca per sfogliare cartelle locali / SharePoint</div>
               </div>
-            ` : ''}
+              ${state.filePath ? `
+                <div class="file-path-display">${state.filePath}</div>
+                <div style="margin-top: 6px; display: flex; justify-content: space-between; font-size: 0.75rem;">
+                  <span>Total Rows: <strong>${state.dataset?.total_rows || 0}</strong></span>
+                  <span class="cm-badge cm-badge-sky">${state.dataset?.detected_sep || 'Unknown'}</span>
+                </div>
+              ` : ''}
+            ` : `
+              <!-- PANNELLO CONNETTORE MYSQL -->
+              <div style="background: #f8fafc; padding: 10px; border-radius: 6px; border: 1px solid var(--border);">
+                <div class="form-row">
+                  <div class="form-group" style="flex: 2;">
+                    <label class="form-label">Host / Server IP</label>
+                    <input type="text" class="form-input" id="sql-host" value="${state.sqlConfig.host}" placeholder="localhost o 192.168.1.x" />
+                  </div>
+                  <div class="form-group" style="flex: 1;">
+                    <label class="form-label">Porta</label>
+                    <input type="number" class="form-input" id="sql-port" value="${state.sqlConfig.port}" />
+                  </div>
+                </div>
+
+                <div class="form-row">
+                  <div class="form-group" style="flex: 1;">
+                    <label class="form-label">Database</label>
+                    <input type="text" class="form-input" id="sql-db" value="${state.sqlConfig.database}" placeholder="building_db" />
+                  </div>
+                  <div class="form-group" style="flex: 1;">
+                    <label class="form-label">Username</label>
+                    <input type="text" class="form-input" id="sql-user" value="${state.sqlConfig.user}" placeholder="root" />
+                  </div>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label">Password (Sessione)</label>
+                  <input type="password" class="form-input" id="sql-pass" value="${state.sqlConfig.password || ''}" placeholder="••••••••" />
+                </div>
+
+                <div style="display: flex; gap: 6px; align-items: center; margin-bottom: 8px;">
+                  <button class="btn btn-secondary" id="btn-sql-test" style="flex: 1; font-size: 0.76rem;">
+                    🔌 Test Connessione
+                  </button>
+                  ${state.sqlStatus ? `
+                    <span class="cm-badge ${state.sqlStatus.connected ? 'cm-badge-emerald' : 'cm-badge-rose'}">
+                      ${state.sqlStatus.connected ? `✓ ${state.sqlStatus.latency_ms}ms` : '✕ Errore'}
+                    </span>
+                  ` : ''}
+                </div>
+
+                ${state.sqlStatus?.tables && state.sqlStatus.tables.length > 0 ? `
+                  <div class="form-group">
+                    <label class="form-label">Seleziona Tabella Rilevata</label>
+                    <select class="form-select" id="sql-table-select">
+                      <option value="">-- Seleziona tabella per auto-query --</option>
+                      ${state.sqlStatus.tables.map(t => `<option value="${t}">📋 ${t}</option>`).join('')}
+                    </select>
+                  </div>
+                ` : ''}
+
+                <div class="form-group" style="margin-bottom: 8px;">
+                  <label class="form-label">Query SQL (SELECT / Aggregazioni)</label>
+                  <textarea class="sql-editor" id="sql-query-input" placeholder="SELECT * FROM sensor_readings LIMIT 50000;">${state.sqlQuery}</textarea>
+                </div>
+
+                <button class="btn btn-primary" id="btn-sql-exec" style="width: 100%; font-size: 0.78rem;">
+                  🚀 Esegui Query & Carica Dataset
+                </button>
+              </div>
+            `}
           </section>
 
-          <!-- Separators & Formatting -->
-          <section class="sidebar-section">
-            <div class="sidebar-title">Delimiter & Decimals</div>
-            
-            <div class="form-group">
-              <label class="form-label">Column Separator</label>
-              <select class="form-select" id="cfg-separator">
-                <option value="auto" ${state.separator === 'auto' ? 'selected' : ''}>Auto-Detect</option>
-                <option value="," ${state.separator === ',' ? 'selected' : ''}>, (Comma)</option>
-                <option value=";" ${state.separator === ';' ? 'selected' : ''}>; (Semicolon - Italian/EU)</option>
-                <option value="\t" ${state.separator === '\t' ? 'selected' : ''}>\\t (Tab / TSV)</option>
-                <option value="|" ${state.separator === '|' ? 'selected' : ''}>| (Pipe)</option>
-              </select>
-            </div>
+          <!-- Separators & Formatting (Only relevant for CSV/TSV) -->
+          ${state.sourceType === 'file' ? `
+            <section class="sidebar-section">
+              <div class="sidebar-title">Delimiter & Decimals (CSV/TSV)</div>
+              
+              <div class="form-row">
+                <div class="form-group" style="flex: 1;">
+                  <label class="form-label">Separator</label>
+                  <select class="form-select" id="cfg-separator">
+                    <option value="auto" ${state.separator === 'auto' ? 'selected' : ''}>Auto-Detect</option>
+                    <option value="," ${state.separator === ',' ? 'selected' : ''}>, (Comma)</option>
+                    <option value=";" ${state.separator === ';' ? 'selected' : ''}>; (Semicolon)</option>
+                    <option value="\t" ${state.separator === '\t' ? 'selected' : ''}>\\t (Tab)</option>
+                    <option value="|" ${state.separator === '|' ? 'selected' : ''}>| (Pipe)</option>
+                  </select>
+                </div>
 
-            <div class="form-group">
-              <label class="form-label">Decimal Format</label>
-              <select class="form-select" id="cfg-decimal">
-                <option value="." ${state.decimal === '.' ? 'selected' : ''}>. (Dot: 12.34)</option>
-                <option value="," ${state.decimal === ',' ? 'selected' : ''}>, (Comma: 12,34)</option>
-              </select>
-            </div>
+                <div class="form-group" style="flex: 1;">
+                  <label class="form-label">Decimal Format</label>
+                  <select class="form-select" id="cfg-decimal">
+                    <option value="." ${state.decimal === '.' ? 'selected' : ''}>. (Dot: 12.34)</option>
+                    <option value="," ${state.decimal === ',' ? 'selected' : ''}>, (Comma: 12,34)</option>
+                  </select>
+                </div>
+              </div>
 
-            <button class="btn btn-secondary" id="btn-reparse" style="width: 100%; margin-top: 6px;">
-              Apply & Re-Parse
-            </button>
-          </section>
+              <button class="btn btn-secondary" id="btn-reparse" style="width: 100%; margin-top: 2px;">
+                Apply & Re-Parse
+              </button>
+            </section>
+          ` : ''}
 
           <!-- Timestamp Detection -->
           <section class="sidebar-section">
@@ -308,10 +546,48 @@ function renderApp() {
                 <input type="text" class="form-input" id="cfg-ts-format" value="${state.timestampFormat}" placeholder="%Y-%m-%d %H:%M:%S" />
               </div>
             </div>
+          </section>
 
-            <button class="btn btn-primary" id="btn-goto-canvas" style="width: 100%; margin-top: 14px;">
-              Open in Canvas Studio →
-            </button>
+          <!-- Coordinate Geospaziali (GIS & Maps Setup) -->
+          <section class="sidebar-section">
+            <div class="sidebar-title">
+              <span>Coordinate Geospaziali (GIS)</span>
+              <span class="cm-badge cm-badge-sky">Maps Ready</span>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Formato Coordinate</label>
+              <select class="form-select" id="cfg-geo-format">
+                <option value="decimal_degrees" ${state.geoCoordFormat === 'decimal_degrees' ? 'selected' : ''}>Gradi Decimali (DD: 45.4781, 9.2270)</option>
+                <option value="dms" ${state.geoCoordFormat === 'dms' ? 'selected' : ''}>Gradi Minuti Secondi (DMS: 45°28'41"N)</option>
+              </select>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group" style="flex: 1;">
+                <label class="form-label">Colonna Latitudine</label>
+                <select class="form-select" id="cfg-geo-lat">
+                  <option value="">-- Nessuna --</option>
+                  ${renderColumnOptions(state.geoLatCol)}
+                </select>
+              </div>
+              <div class="form-group" style="flex: 1;">
+                <label class="form-label">Colonna Longitudine</label>
+                <select class="form-select" id="cfg-geo-lon">
+                  <option value="">-- Nessuna --</option>
+                  ${renderColumnOptions(state.geoLonCol)}
+                </select>
+              </div>
+            </div>
+
+            <div style="display: flex; gap: 6px; margin-top: 6px;">
+              <button class="btn btn-primary" id="btn-goto-canvas" style="flex: 1; font-size: 0.76rem;">
+                Canvas Studio →
+              </button>
+              <button class="btn btn-secondary" id="btn-goto-maps" style="flex: 1; font-size: 0.76rem;">
+                🗺️ Maps Studio →
+              </button>
+            </div>
           </section>
         </aside>
 
@@ -549,16 +825,283 @@ function renderApp() {
         </main>
       </div>
 
-      <!-- VIEW 3: MULTIPLOT GRID -->
+      <!-- VIEW 3: MULTIPLOT GRID STUDIO -->
       <div class="view-panel ${state.currentTab === 'multi' ? 'active' : ''}" id="view-multi">
-        <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px; text-align: center; color: var(--text-muted); background: #f8fafc;">
-          <div style="font-size: 3rem; margin-bottom: 12px;">▦</div>
-          <h2 style="font-size: 1.25rem; font-weight: 700; color: #000000; margin-bottom: 6px;">MultiPlot Grid Studio</h2>
-          <p style="font-size: 0.85rem; max-width: 480px; margin-bottom: 16px; line-height: 1.5;">
-            Matrice scientifica di sub-plot (Vertical Stack 3×1, 2×1, Quadranti 2×2) con lettering accademico automatico (a)-(d) e asse temporale sincronizzato.
-          </p>
-          <div class="cm-badge cm-badge-sky" style="font-size: 0.8rem; padding: 6px 12px;">In Arrivo nel Prossimo Step</div>
-        </div>
+        <aside class="sidebar">
+
+          <!-- 0. MULTIPLOT SALVATI -->
+          <section class="sidebar-section" style="background: #f8fafc; border-bottom: 2px solid var(--border);">
+            <div class="sidebar-title">
+              <span>MultiPlot del Progetto</span>
+              <span class="cm-badge cm-badge-emerald">${state.activeMultiPlot || 'MultiPlot_1'}</span>
+            </div>
+
+            <div style="display: flex; gap: 6px; margin-bottom: 8px;">
+              <select class="form-select" id="sel-multiplot" style="flex: 1; font-size: 0.8rem; font-weight: 600;">
+                ${renderMultiPlotSelectOptions()}
+              </select>
+              <button class="btn btn-primary" id="btn-save-multiplot" style="font-size: 0.76rem; padding: 4px 10px;">
+                💾 Salva
+              </button>
+            </div>
+
+            <div style="display: flex; gap: 6px;">
+              <button class="btn btn-secondary" id="btn-new-multiplot" style="flex: 1; font-size: 0.74rem; padding: 4px 6px;">
+                + Salva come Nuovo
+              </button>
+              <button class="btn btn-secondary" id="btn-delete-multiplot" style="font-size: 0.74rem; padding: 4px 6px; color: var(--rose);">
+                ✕ Elimina
+              </button>
+            </div>
+          </section>
+
+          <!-- 1. TOPOLOGIA MATRICE SUBPLOT (1-CLICK) -->
+          <section class="sidebar-section">
+            <div class="sidebar-title">
+              <span>Topologia Griglia Scientifica</span>
+              <span class="cm-badge cm-badge-sky">Subplots</span>
+            </div>
+
+            <div class="topo-grid">
+              <button class="topo-btn ${state.mpTopology === '3x1' ? 'active' : ''}" data-topo="3x1">
+                <span>☰ Stack 3×1</span>
+                <span style="font-size: 0.68rem; opacity: 0.8;">(a)-(c)</span>
+              </button>
+              <button class="topo-btn ${state.mpTopology === '2x1' ? 'active' : ''}" data-topo="2x1">
+                <span>≣ Stack 2×1</span>
+                <span style="font-size: 0.68rem; opacity: 0.8;">(a)-(b)</span>
+              </button>
+              <button class="topo-btn ${state.mpTopology === '2x2' ? 'active' : ''}" data-topo="2x2">
+                <span>▦ Matrice 2×2</span>
+                <span style="font-size: 0.68rem; opacity: 0.8;">4 Quadranti</span>
+              </button>
+              <button class="topo-btn ${state.mpTopology === '1x2' ? 'active' : ''}" data-topo="1x2">
+                <span>◫ Side 1×2</span>
+                <span style="font-size: 0.68rem; opacity: 0.8;">Affiancati</span>
+              </button>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 6px;">
+              <label style="display: flex; align-items: center; gap: 8px; font-size: 0.8rem; cursor: pointer;">
+                <input type="checkbox" id="mp-share-x" ${state.mpShareX ? 'checked' : ''} />
+                <span style="font-weight: 600; color: #000000;">Sincronizza Asse X Condiviso (Nascondi label intermedi)</span>
+              </label>
+              <label style="display: flex; align-items: center; gap: 8px; font-size: 0.8rem; cursor: pointer;">
+                <input type="checkbox" id="mp-lettering" ${state.mpAutoLettering ? 'checked' : ''} />
+                <span style="font-weight: 600; color: #000000;">Lettering Accademico Automatico (a), (b), (c)...</span>
+              </label>
+            </div>
+          </section>
+
+          <!-- 2. CONFIGURAZIONE SINGOLI PANNELLI -->
+          <section class="sidebar-section">
+            <div class="sidebar-title">
+              <span>Configurazione Pannelli</span>
+              <span class="cm-badge cm-badge-emerald">${getActivePanelCount()} Pannelli</span>
+            </div>
+            <div id="mp-panels-container">
+              ${renderMultiPlotPanelCards()}
+            </div>
+          </section>
+        </aside>
+
+        <!-- MultiPlot Viewport -->
+        <main class="canvas-container">
+          <div class="canvas-toolbar">
+            <div class="preset-selector">
+              <span style="font-size: 0.78rem; font-weight: 700; color: #000000; align-self: center; margin-right: 4px;">Preset MultiPlot:</span>
+              <button class="preset-btn mp-preset-btn ${state.mpPreset === 'single_stack' ? 'active' : ''}" data-mppreset="single_stack">Colonna Singola (8.5×11.5cm)</button>
+              <button class="preset-btn mp-preset-btn ${state.mpPreset === 'double_stack' ? 'active' : ''}" data-mppreset="double_stack">Doppia Colonna Stack (17×13.5cm)</button>
+              <button class="preset-btn mp-preset-btn ${state.mpPreset === 'square_grid' ? 'active' : ''}" data-mppreset="square_grid">Quadrato 2×2 (14×14cm)</button>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 12px; font-size: 0.8rem;">
+              <span>Dimensioni: <strong style="color: #000000;">${state.mpWidthCm} × ${state.mpHeightCm} cm</strong></span>
+              <span class="cm-badge cm-badge-emerald">Multi-Panel Sync</span>
+            </div>
+          </div>
+
+          <div class="chart-viewport">
+            <div id="plotly-multi-chart" class="plot-wrapper"></div>
+          </div>
+        </main>
+      </div>
+
+      <!-- VIEW 4: MAPS & GEO-ANALYTICS STUDIO -->
+      <div class="view-panel ${state.currentTab === 'maps' ? 'active' : ''}" id="view-maps">
+        <aside class="sidebar">
+
+          <!-- 0. MAPPE SALVATE -->
+          <section class="sidebar-section" style="background: #f8fafc; border-bottom: 2px solid var(--border);">
+            <div class="sidebar-title">
+              <span>Mappe GIS del Progetto</span>
+              <span class="cm-badge cm-badge-emerald">${state.activeMap || 'Mappa_1'}</span>
+            </div>
+
+            <div style="display: flex; gap: 6px; margin-bottom: 8px;">
+              <select class="form-select" id="sel-map" style="flex: 1; font-size: 0.8rem; font-weight: 600;">
+                ${renderMapSelectOptions()}
+              </select>
+              <button class="btn btn-primary" id="btn-save-map" style="font-size: 0.76rem; padding: 4px 10px;">
+                💾 Salva
+              </button>
+            </div>
+
+            <div style="display: flex; gap: 6px;">
+              <button class="btn btn-secondary" id="btn-new-map" style="flex: 1; font-size: 0.74rem; padding: 4px 6px;">
+                + Salva come Nuova
+              </button>
+              <button class="btn btn-secondary" id="btn-delete-map" style="font-size: 0.74rem; padding: 4px 6px; color: var(--rose);">
+                ✕ Elimina
+              </button>
+            </div>
+          </section>
+
+          <!-- 1. TIPO DI MAPPA & BASE MAP PROVIDER -->
+          <section class="sidebar-section">
+            <div class="sidebar-title">
+              <span>Modalità Cartografica & Sfondo</span>
+              <span class="cm-badge cm-badge-sky">GIS Engine</span>
+            </div>
+
+            <div class="map-mode-group">
+              <button class="map-mode-btn ${state.mapMode === 'bubble' ? 'active' : ''}" data-mapmode="bubble">
+                📍 Bubble Map
+              </button>
+              <button class="map-mode-btn ${state.mapMode === 'density' ? 'active' : ''}" data-mapmode="density">
+                🔥 Heatmap
+              </button>
+              <button class="map-mode-btn ${state.mapMode === 'track' ? 'active' : ''}" data-mapmode="track">
+                〰️ GPS Track
+              </button>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Base Map Provider (Tile Layer)</label>
+              <select class="form-select" id="map-basemap">
+                <option value="carto-positron" ${state.mapBasemap === 'carto-positron' ? 'selected' : ''}>🏙️ CartoDB Positron (Light Paper Standard)</option>
+                <option value="esri-satellite" ${state.mapBasemap === 'esri-satellite' ? 'selected' : ''}>🛰️ ESRI World Imagery Satellite</option>
+                <option value="open-street-map" ${state.mapBasemap === 'open-street-map' ? 'selected' : ''}>🗺️ OpenStreetMap (Road & Urban)</option>
+                <option value="carto-darkmatter" ${state.mapBasemap === 'carto-darkmatter' ? 'selected' : ''}>🌑 CartoDB Dark Matter (High Contrast)</option>
+                <option value="opentopomap" ${state.mapBasemap === 'opentopomap' ? 'selected' : ''}>🏔️ OpenTopoMap (Topographic Elevation)</option>
+              </select>
+            </div>
+          </section>
+
+          <!-- 2. COORDINATE E METRICHE SCALARI -->
+          <section class="sidebar-section">
+            <div class="sidebar-title">Coordinate & Variabili Spaziali</div>
+
+            <div class="form-row">
+              <div class="form-group" style="flex: 1;">
+                <label class="form-label">Latitudine (Y)</label>
+                <select class="form-select" id="map-lat-col">
+                  <option value="">Seleziona Lat...</option>
+                  ${renderColumnOptions(state.geoLatCol)}
+                </select>
+              </div>
+              <div class="form-group" style="flex: 1;">
+                <label class="form-label">Longitudine (X)</label>
+                <select class="form-select" id="map-lon-col">
+                  <option value="">Seleziona Lon...</option>
+                  ${renderColumnOptions(state.geoLonCol)}
+                </select>
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group" style="flex: 1;">
+                <label class="form-label">Variabile Colore (Z)</label>
+                <select class="form-select" id="map-color-col">
+                  <option value="">-- Uniforme --</option>
+                  ${renderColumnOptions(state.mapColorCol)}
+                </select>
+              </div>
+              <div class="form-group" style="flex: 1;">
+                <label class="form-label">Variabile Raggio (Size)</label>
+                <select class="form-select" id="map-size-col">
+                  <option value="">-- Fisso --</option>
+                  ${renderColumnOptions(state.mapSizeCol)}
+                </select>
+              </div>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 0;">
+              <label class="form-label">Scala Cromatica Scientifica</label>
+              <select class="form-select" id="map-colorscale">
+                <option value="Viridis" ${state.mapColorscale === 'Viridis' ? 'selected' : ''}>Viridis (Perceptually Uniform)</option>
+                <option value="Plasma" ${state.mapColorscale === 'Plasma' ? 'selected' : ''}>Plasma (Thermal High-Contrast)</option>
+                <option value="RdBu" ${state.mapColorscale === 'RdBu' ? 'selected' : ''}>RdBu (Diverging Blue-Red)</option>
+                <option value="YlOrRd" ${state.mapColorscale === 'YlOrRd' ? 'selected' : ''}>YlOrRd (Heat & Intensity)</option>
+                <option value="Emerald" ${state.mapColorscale === 'Emerald' ? 'selected' : ''}>Emerald (ChartMate Green)</option>
+              </select>
+            </div>
+          </section>
+
+          <!-- 3. CLUSTERIZZAZIONE SPAZIALE & OPERAZIONI MATEMATICHE -->
+          <section class="sidebar-section">
+            <div class="sidebar-title">
+              <span>Clusterizzazione & Math Engine</span>
+              <span class="cm-badge cm-badge-amber">Geo-Stats</span>
+            </div>
+
+            <label style="display: flex; align-items: center; gap: 8px; font-size: 0.82rem; cursor: pointer; margin-bottom: 8px;">
+              <input type="checkbox" id="map-cluster-toggle" ${state.mapClusterEnabled ? 'checked' : ''} />
+              <span style="font-weight: 600; color: #000000;">Abilita Clusterizzazione Spaziale (Grid Binning)</span>
+            </label>
+
+            <div id="map-cluster-panel" style="display: ${state.mapClusterEnabled ? 'block' : 'none'}; background: #f8fafc; padding: 10px; border-radius: 6px; border: 1px solid var(--border);">
+              <div class="form-group">
+                <label class="form-label">Operazione Matematica sul Cluster</label>
+                <select class="form-select" id="map-cluster-agg">
+                  <option value="mean" ${state.mapClusterAgg === 'mean' ? 'selected' : ''}>μ — Media Aritmetica dei valori nel Cluster</option>
+                  <option value="sum" ${state.mapClusterAgg === 'sum' ? 'selected' : ''}>Σ — Somma Cumulata (es. Carico/Energia Totale)</option>
+                  <option value="mode" ${state.mapClusterAgg === 'mode' ? 'selected' : ''}>Mo — Moda (Valore Dominante più frequente)</option>
+                  <option value="max" ${state.mapClusterAgg === 'max' ? 'selected' : ''}>Max — Valore di Picco Massimo</option>
+                  <option value="min" ${state.mapClusterAgg === 'min' ? 'selected' : ''}>Min — Valore Minimo</option>
+                  <option value="count" ${state.mapClusterAgg === 'count' ? 'selected' : ''}>N — Conteggio Densità Campionaria</option>
+                </select>
+              </div>
+
+              <div class="form-group" style="margin-bottom: 4px;">
+                <label class="form-label">Raggio Cella Spaziale (Gradi Decimali)</label>
+                <select class="form-select" id="map-cluster-grid">
+                  <option value="0.0005" ${state.mapClusterGridDeg === 0.0005 ? 'selected' : ''}>0.0005° (~50m - Micro-Edificio)</option>
+                  <option value="0.002" ${state.mapClusterGridDeg === 0.002 ? 'selected' : ''}>0.002° (~200m - Isolato / Campus)</option>
+                  <option value="0.005" ${state.mapClusterGridDeg === 0.005 ? 'selected' : ''}>0.005° (~500m - Quartiere)</option>
+                  <option value="0.02" ${state.mapClusterGridDeg === 0.02 ? 'selected' : ''}>0.02° (~2km - Distretto Urbano)</option>
+                  <option value="0.1" ${state.mapClusterGridDeg === 0.1 ? 'selected' : ''}>0.10° (~10km - Scala Provinciale)</option>
+                </select>
+              </div>
+
+              <div class="cluster-stats-banner" id="map-cluster-banner">
+                <span>Cluster Attivi: <strong id="lbl-cluster-count">${state.mapLastClusterCount || '-'}</strong></span>
+                <span class="cm-badge cm-badge-emerald" id="lbl-cluster-stat">${state.mapLastSummaryStat || 'Ready'}</span>
+              </div>
+            </div>
+          </section>
+        </aside>
+
+        <!-- Maps Viewport -->
+        <main class="canvas-container">
+          <div class="canvas-toolbar">
+            <div class="preset-selector">
+              <span style="font-size: 0.78rem; font-weight: 700; color: #000000; align-self: center; margin-right: 4px;">Formato Mappa:</span>
+              <button class="preset-btn map-preset-btn ${state.mapPreset === 'single' ? 'active' : ''}" data-mappreset="single">Singola Colonna (8.5×7.5cm)</button>
+              <button class="preset-btn map-preset-btn ${state.mapPreset === 'double' ? 'active' : ''}" data-mappreset="double">Doppia Colonna (17×10.5cm)</button>
+              <button class="preset-btn map-preset-btn ${state.mapPreset === 'square' ? 'active' : ''}" data-mappreset="square">Quadrato GIS (12×12cm)</button>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 12px; font-size: 0.8rem;">
+              <span>Dimensioni: <strong style="color: #000000;">${state.mapWidthCm} × ${state.mapHeightCm} cm</strong></span>
+              <span class="cm-badge cm-badge-sky">▲ Nord · Auto-BBox</span>
+            </div>
+          </div>
+
+          <div class="chart-viewport">
+            <div id="plotly-map-chart" class="plot-wrapper"></div>
+          </div>
+        </main>
       </div>
     </div>
   `;
@@ -566,7 +1109,17 @@ function renderApp() {
   attachEventListeners();
   if (state.currentTab === 'canvas') {
     updateChart();
+  } else if (state.currentTab === 'multi') {
+    updateMultiPlotChart();
+  } else if (state.currentTab === 'maps') {
+    updateMapChart();
   }
+}
+
+function getActivePanelCount(): number {
+  if (state.mpTopology === '3x1') return 3;
+  if (state.mpTopology === '2x1' || state.mpTopology === '1x2') return 2;
+  return 4;
 }
 
 function renderColumnOptions(selected: string): string {
@@ -592,6 +1145,91 @@ function renderCanvasSelectOptions(): string {
     return `<option value="${current}" selected>📊 ${current}</option>`;
   }
   return keys.map(k => `<option value="${k}" ${k === state.activeCanvas ? 'selected' : ''}>📊 ${k}</option>`).join('');
+}
+
+function renderMultiPlotSelectOptions(): string {
+  const project = state.activeProject ? state.projectsStore[state.activeProject] : null;
+  const mps = project?.multiplots || {};
+  const keys = Object.keys(mps);
+  if (keys.length === 0) {
+    const current = state.activeMultiPlot || 'MultiPlot_1';
+    return `<option value="${current}" selected>▦ ${current}</option>`;
+  }
+  return keys.map(k => `<option value="${k}" ${k === state.activeMultiPlot ? 'selected' : ''}>▦ ${k}</option>`).join('');
+}
+
+function renderMapSelectOptions(): string {
+  const project = state.activeProject ? state.projectsStore[state.activeProject] : null;
+  const maps = project?.maps || {};
+  const keys = Object.keys(maps);
+  if (keys.length === 0) {
+    const current = state.activeMap || 'Mappa_1';
+    return `<option value="${current}" selected>🗺️ ${current}</option>`;
+  }
+  return keys.map(k => `<option value="${k}" ${k === state.activeMap ? 'selected' : ''}>🗺️ ${k}</option>`).join('');
+}
+
+function renderMultiPlotPanelCards(): string {
+  const count = getActivePanelCount();
+  const letters = ['(a)', '(b)', '(c)', '(d)'];
+  const project = state.activeProject ? state.projectsStore[state.activeProject] : null;
+  const savedCanvases = Object.keys(project?.canvases || {});
+
+  let html = '';
+  for (let i = 0; i < count; i++) {
+    const p = state.mpPanels[i] || {
+      y1Col: '',
+      y1Type: 'line',
+      y1Color: DEFAULT_PALETTE[i % DEFAULT_PALETTE.length],
+      y2Col: '',
+      y2Color: '#0284c7',
+      yTitle: `Panel ${letters[i]}`
+    };
+
+    html += `
+      <div class="mp-panel-card" data-pidx="${i}">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <span class="mp-panel-badge">${letters[i]}</span>
+            <input type="text" class="form-input inp-mp-title" data-pidx="${i}" value="${p.yTitle}" placeholder="Titolo asse Y..." style="width: 155px; padding: 3px 6px; font-size: 0.78rem; font-weight: 600;" />
+          </div>
+          ${savedCanvases.length > 0 ? `
+            <select class="trace-select sel-mp-from-canvas" data-pidx="${i}" title="Importa serie da un Canvas salvato" style="max-width: 125px;">
+              <option value="">📥 Da Canvas...</option>
+              ${savedCanvases.map(c => `<option value="${c}">${c}</option>`).join('')}
+            </select>
+          ` : ''}
+        </div>
+
+        <!-- Serie Primaria Y1 -->
+        <div style="display: flex; gap: 5px; align-items: center; margin-bottom: 6px;">
+          <span style="font-size: 0.72rem; font-weight: 700; color: #000000; width: 22px;">Y1:</span>
+          <select class="trace-select sel-mp-y1" data-pidx="${i}" style="flex: 1;">
+            <option value="">-- Seleziona Y1 --</option>
+            ${renderColumnOptions(p.y1Col)}
+          </select>
+          <select class="trace-select sel-mp-type" data-pidx="${i}">
+            <option value="line" ${p.y1Type === 'line' ? 'selected' : ''}>📈 Linea</option>
+            <option value="bar" ${p.y1Type === 'bar' ? 'selected' : ''}>📊 Barre</option>
+            <option value="area" ${p.y1Type === 'area' ? 'selected' : ''}>▲ Area</option>
+            <option value="scatter" ${p.y1Type === 'scatter' ? 'selected' : ''}>⚪ Punti</option>
+          </select>
+          <input type="color" class="trace-color-input inp-mp-c1" data-pidx="${i}" value="${p.y1Color}" />
+        </div>
+
+        <!-- Serie Secondaria Opzionale Y2 (Dual Axis nel pannello) -->
+        <div style="display: flex; gap: 5px; align-items: center;">
+          <span style="font-size: 0.72rem; font-weight: 700; color: var(--sky); width: 22px;">Y2:</span>
+          <select class="trace-select sel-mp-y2" data-pidx="${i}" style="flex: 1;">
+            <option value="">-- Nessuna (Opzionale) --</option>
+            ${renderColumnOptions(p.y2Col)}
+          </select>
+          <input type="color" class="trace-color-input inp-mp-c2" data-pidx="${i}" value="${p.y2Color}" />
+        </div>
+      </div>
+    `;
+  }
+  return html;
 }
 
 function renderTraceCards(): string {
@@ -677,9 +1315,108 @@ function attachEventListeners() {
     renderApp();
   });
 
+  document.getElementById('tab-nav-multi')?.addEventListener('click', () => {
+    state.currentTab = 'multi';
+    renderApp();
+  });
+
+  document.getElementById('tab-nav-maps')?.addEventListener('click', () => {
+    state.currentTab = 'maps';
+    renderApp();
+  });
+
   document.getElementById('btn-goto-canvas')?.addEventListener('click', () => {
     state.currentTab = 'canvas';
     renderApp();
+  });
+
+  document.getElementById('btn-goto-maps')?.addEventListener('click', () => {
+    state.currentTab = 'maps';
+    renderApp();
+  });
+
+  // Source Toggle (File vs SQL)
+  document.getElementById('btn-src-file')?.addEventListener('click', () => {
+    state.sourceType = 'file';
+    renderApp();
+  });
+
+  document.getElementById('btn-src-sql')?.addEventListener('click', () => {
+    state.sourceType = 'sql';
+    renderApp();
+  });
+
+  // SQL Connection Manager Events
+  document.getElementById('sql-host')?.addEventListener('input', (e) => {
+    state.sqlConfig.host = (e.target as HTMLInputElement).value;
+  });
+  document.getElementById('sql-port')?.addEventListener('input', (e) => {
+    state.sqlConfig.port = parseInt((e.target as HTMLInputElement).value, 10) || 3306;
+  });
+  document.getElementById('sql-db')?.addEventListener('input', (e) => {
+    state.sqlConfig.database = (e.target as HTMLInputElement).value;
+  });
+  document.getElementById('sql-user')?.addEventListener('input', (e) => {
+    state.sqlConfig.user = (e.target as HTMLInputElement).value;
+  });
+  document.getElementById('sql-pass')?.addEventListener('input', (e) => {
+    state.sqlConfig.password = (e.target as HTMLInputElement).value;
+  });
+  document.getElementById('sql-query-input')?.addEventListener('input', (e) => {
+    state.sqlQuery = (e.target as HTMLTextAreaElement).value;
+  });
+
+  document.getElementById('btn-sql-test')?.addEventListener('click', async () => {
+    try {
+      const status = await invoke<SqlConnectionStatus>('test_sql_connection', {
+        config: state.sqlConfig
+      });
+      state.sqlStatus = status;
+      renderApp();
+    } catch (err) {
+      state.sqlStatus = {
+        connected: false,
+        latency_ms: 0,
+        tables: [],
+        message: `${err}`
+      };
+      renderApp();
+    }
+  });
+
+  document.getElementById('sql-table-select')?.addEventListener('change', (e) => {
+    const tbl = (e.target as HTMLSelectElement).value;
+    if (tbl) {
+      state.sqlQuery = `SELECT * FROM \`${tbl}\` LIMIT 10000;`;
+      const qEl = document.getElementById('sql-query-input') as HTMLTextAreaElement | null;
+      if (qEl) qEl.value = state.sqlQuery;
+    }
+  });
+
+  document.getElementById('btn-sql-exec')?.addEventListener('click', async () => {
+    try {
+      const preview = await invoke<DatasetPreview>('execute_sql_query', {
+        config: state.sqlConfig,
+        query: state.sqlQuery
+      });
+      state.dataset = preview;
+      state.filePath = `mysql://${state.sqlConfig.host}:${state.sqlConfig.port}/${state.sqlConfig.database}`;
+      applyDatasetMetadata(preview, true);
+      renderApp();
+    } catch (err) {
+      alert(`Errore esecuzione query SQL: ${err}`);
+    }
+  });
+
+  // Geospatial Configurator in Tab 1
+  document.getElementById('cfg-geo-format')?.addEventListener('change', (e) => {
+    state.geoCoordFormat = (e.target as HTMLSelectElement).value as any;
+  });
+  document.getElementById('cfg-geo-lat')?.addEventListener('change', (e) => {
+    state.geoLatCol = (e.target as HTMLSelectElement).value;
+  });
+  document.getElementById('cfg-geo-lon')?.addEventListener('change', (e) => {
+    state.geoLonCol = (e.target as HTMLSelectElement).value;
   });
 
   // Dropzone File Loading
@@ -715,7 +1452,7 @@ function attachEventListeners() {
   });
 
   document.getElementById('btn-reparse')?.addEventListener('click', async () => {
-    if (state.filePath) {
+    if (state.filePath && state.sourceType === 'file') {
       await loadFile(state.filePath);
     }
   });
@@ -887,7 +1624,7 @@ function attachEventListeners() {
     updateChart();
   });
 
-  // Presets
+  // Presets (Single Canvas)
   document.querySelectorAll('.preset-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
       const p = (e.target as HTMLElement).getAttribute('data-preset') as any;
@@ -939,14 +1676,296 @@ function attachEventListeners() {
     updateChart();
   });
 
-  // Export 1-Click SVG
-  document.getElementById('btn-export')?.addEventListener('click', () => {
-    Plotly.downloadImage('plotly-chart', {
-      format: 'svg',
-      width: state.widthCm * 37.795,
-      height: state.heightCm * 37.795,
-      filename: `ChartMate_${state.preset}_figure`
+  // MultiPlot Studio Listeners
+  document.querySelectorAll('.topo-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const topo = (e.currentTarget as HTMLElement).getAttribute('data-topo') as any;
+      if (topo) {
+        state.mpTopology = topo;
+        renderApp();
+      }
     });
+  });
+
+  document.getElementById('mp-share-x')?.addEventListener('change', (e) => {
+    state.mpShareX = (e.target as HTMLInputElement).checked;
+    updateMultiPlotChart();
+  });
+
+  document.getElementById('mp-lettering')?.addEventListener('change', (e) => {
+    state.mpAutoLettering = (e.target as HTMLInputElement).checked;
+    updateMultiPlotChart();
+  });
+
+  document.querySelectorAll('.inp-mp-title').forEach(inp => {
+    inp.addEventListener('input', (e) => {
+      const idx = parseInt((e.target as HTMLElement).getAttribute('data-pidx') || '0', 10);
+      if (state.mpPanels[idx]) {
+        state.mpPanels[idx].yTitle = (e.target as HTMLInputElement).value;
+        updateMultiPlotChart();
+      }
+    });
+  });
+
+  document.querySelectorAll('.sel-mp-from-canvas').forEach(sel => {
+    sel.addEventListener('change', (e) => {
+      const idx = parseInt((e.target as HTMLElement).getAttribute('data-pidx') || '0', 10);
+      const canvasName = (e.target as HTMLSelectElement).value;
+      const proj = state.activeProject ? state.projectsStore[state.activeProject] : null;
+      const cfg = proj?.canvases?.[canvasName];
+      if (cfg && state.mpPanels[idx]) {
+        const y1T = cfg.traces.find(t => t.axis === 'y1') || cfg.traces[0];
+        const y2T = cfg.traces.find(t => t.axis === 'y2');
+        if (y1T) {
+          state.mpPanels[idx].y1Col = y1T.column;
+          state.mpPanels[idx].y1Type = y1T.chartType;
+          state.mpPanels[idx].y1Color = y1T.color;
+        }
+        if (y2T) {
+          state.mpPanels[idx].y2Col = y2T.column;
+          state.mpPanels[idx].y2Color = y2T.color;
+        }
+        state.mpPanels[idx].yTitle = cfg.y1_title || y1T?.column || `Panel ${idx + 1}`;
+        renderApp();
+      }
+    });
+  });
+
+  document.querySelectorAll('.sel-mp-y1').forEach(sel => {
+    sel.addEventListener('change', (e) => {
+      const idx = parseInt((e.target as HTMLElement).getAttribute('data-pidx') || '0', 10);
+      const val = (e.target as HTMLSelectElement).value;
+      if (state.mpPanels[idx]) {
+        state.mpPanels[idx].y1Col = val;
+        if (!state.mpPanels[idx].yTitle || state.mpPanels[idx].yTitle.startsWith('Panel')) {
+          state.mpPanels[idx].yTitle = val;
+        }
+        renderApp();
+      }
+    });
+  });
+
+  document.querySelectorAll('.sel-mp-type').forEach(sel => {
+    sel.addEventListener('change', (e) => {
+      const idx = parseInt((e.target as HTMLElement).getAttribute('data-pidx') || '0', 10);
+      if (state.mpPanels[idx]) {
+        state.mpPanels[idx].y1Type = (e.target as HTMLSelectElement).value as any;
+        updateMultiPlotChart();
+      }
+    });
+  });
+
+  document.querySelectorAll('.inp-mp-c1').forEach(inp => {
+    inp.addEventListener('input', (e) => {
+      const idx = parseInt((e.target as HTMLElement).getAttribute('data-pidx') || '0', 10);
+      if (state.mpPanels[idx]) {
+        state.mpPanels[idx].y1Color = (e.target as HTMLInputElement).value;
+        updateMultiPlotChart();
+      }
+    });
+  });
+
+  document.querySelectorAll('.sel-mp-y2').forEach(sel => {
+    sel.addEventListener('change', (e) => {
+      const idx = parseInt((e.target as HTMLElement).getAttribute('data-pidx') || '0', 10);
+      if (state.mpPanels[idx]) {
+        state.mpPanels[idx].y2Col = (e.target as HTMLSelectElement).value;
+        updateMultiPlotChart();
+      }
+    });
+  });
+
+  document.querySelectorAll('.inp-mp-c2').forEach(inp => {
+    inp.addEventListener('input', (e) => {
+      const idx = parseInt((e.target as HTMLElement).getAttribute('data-pidx') || '0', 10);
+      if (state.mpPanels[idx]) {
+        state.mpPanels[idx].y2Color = (e.target as HTMLInputElement).value;
+        updateMultiPlotChart();
+      }
+    });
+  });
+
+  document.querySelectorAll('.mp-preset-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const p = (e.target as HTMLElement).getAttribute('data-mppreset') as keyof typeof MP_PRESETS | null;
+      if (p && MP_PRESETS[p]) {
+        state.mpPreset = p;
+        state.mpWidthCm = MP_PRESETS[p].w;
+        state.mpHeightCm = MP_PRESETS[p].h;
+        renderApp();
+      }
+    });
+  });
+
+  // MultiPlot Save/Load
+  document.getElementById('sel-multiplot')?.addEventListener('change', async (e) => {
+    const mpName = (e.target as HTMLSelectElement).value;
+    if (mpName && state.activeProject && state.projectsStore[state.activeProject]?.multiplots?.[mpName]) {
+      const cfg = state.projectsStore[state.activeProject].multiplots![mpName];
+      state.activeMultiPlot = cfg.name;
+      state.mpTopology = cfg.topology;
+      state.mpShareX = cfg.share_x;
+      state.mpAutoLettering = cfg.auto_lettering;
+      state.mpPreset = cfg.preset as any;
+      state.mpWidthCm = cfg.width_cm;
+      state.mpHeightCm = cfg.height_cm;
+      state.mpPanels = JSON.parse(JSON.stringify(cfg.panels));
+      renderApp();
+    }
+  });
+
+  document.getElementById('btn-save-multiplot')?.addEventListener('click', async () => {
+    await saveMultiPlot(state.activeMultiPlot || 'MultiPlot_1');
+  });
+
+  document.getElementById('btn-new-multiplot')?.addEventListener('click', async () => {
+    const newName = prompt('Inserisci nome nuovo MultiPlot:', `MultiPlot_${Date.now().toString().slice(-3)}`);
+    if (newName && newName.trim()) {
+      state.activeMultiPlot = newName.trim();
+      await saveMultiPlot(newName.trim());
+    }
+  });
+
+  document.getElementById('btn-delete-multiplot')?.addEventListener('click', async () => {
+    if (!state.activeProject || !state.projectsStore[state.activeProject]?.multiplots) return;
+    delete state.projectsStore[state.activeProject].multiplots![state.activeMultiPlot];
+    await persistProjectsStore();
+    renderApp();
+  });
+
+  // Maps Studio Listeners
+  document.querySelectorAll('.map-mode-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const mode = (e.currentTarget as HTMLElement).getAttribute('data-mapmode') as any;
+      if (mode) {
+        state.mapMode = mode;
+        renderApp();
+      }
+    });
+  });
+
+  document.getElementById('map-basemap')?.addEventListener('change', (e) => {
+    state.mapBasemap = (e.target as HTMLSelectElement).value as any;
+    updateMapChart();
+  });
+
+  document.getElementById('map-lat-col')?.addEventListener('change', (e) => {
+    state.geoLatCol = (e.target as HTMLSelectElement).value;
+    updateMapChart();
+  });
+
+  document.getElementById('map-lon-col')?.addEventListener('change', (e) => {
+    state.geoLonCol = (e.target as HTMLSelectElement).value;
+    updateMapChart();
+  });
+
+  document.getElementById('map-color-col')?.addEventListener('change', (e) => {
+    state.mapColorCol = (e.target as HTMLSelectElement).value;
+    updateMapChart();
+  });
+
+  document.getElementById('map-size-col')?.addEventListener('change', (e) => {
+    state.mapSizeCol = (e.target as HTMLSelectElement).value;
+    updateMapChart();
+  });
+
+  document.getElementById('map-colorscale')?.addEventListener('change', (e) => {
+    state.mapColorscale = (e.target as HTMLSelectElement).value as any;
+    updateMapChart();
+  });
+
+  document.getElementById('map-cluster-toggle')?.addEventListener('change', (e) => {
+    state.mapClusterEnabled = (e.target as HTMLInputElement).checked;
+    const panel = document.getElementById('map-cluster-panel');
+    if (panel) panel.style.display = state.mapClusterEnabled ? 'block' : 'none';
+    updateMapChart();
+  });
+
+  document.getElementById('map-cluster-agg')?.addEventListener('change', (e) => {
+    state.mapClusterAgg = (e.target as HTMLSelectElement).value as any;
+    updateMapChart();
+  });
+
+  document.getElementById('map-cluster-grid')?.addEventListener('change', (e) => {
+    state.mapClusterGridDeg = parseFloat((e.target as HTMLSelectElement).value) || 0.005;
+    updateMapChart();
+  });
+
+  document.querySelectorAll('.map-preset-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const p = (e.target as HTMLElement).getAttribute('data-mappreset') as keyof typeof MAP_PRESETS | null;
+      if (p && MAP_PRESETS[p]) {
+        state.mapPreset = p;
+        state.mapWidthCm = MAP_PRESETS[p].w;
+        state.mapHeightCm = MAP_PRESETS[p].h;
+        renderApp();
+      }
+    });
+  });
+
+  document.getElementById('sel-map')?.addEventListener('change', (e) => {
+    const mapName = (e.target as HTMLSelectElement).value;
+    if (mapName && state.activeProject && state.projectsStore[state.activeProject]?.maps?.[mapName]) {
+      const cfg = state.projectsStore[state.activeProject].maps![mapName];
+      state.activeMap = cfg.name;
+      state.mapMode = cfg.mode;
+      state.mapBasemap = cfg.basemap;
+      state.mapColorCol = cfg.color_col;
+      state.mapSizeCol = cfg.size_col;
+      state.mapClusterEnabled = cfg.cluster_enabled;
+      state.mapClusterAgg = cfg.cluster_agg;
+      state.mapClusterGridDeg = cfg.cluster_grid_deg;
+      state.mapColorscale = cfg.colorscale;
+      state.mapPreset = cfg.preset as any;
+      state.mapWidthCm = cfg.width_cm;
+      state.mapHeightCm = cfg.height_cm;
+      renderApp();
+    }
+  });
+
+  document.getElementById('btn-save-map')?.addEventListener('click', async () => {
+    await saveMapConfig(state.activeMap || 'Mappa_1');
+  });
+
+  document.getElementById('btn-new-map')?.addEventListener('click', async () => {
+    const newName = prompt('Inserisci nome nuova Mappa:', `Mappa_${Date.now().toString().slice(-3)}`);
+    if (newName && newName.trim()) {
+      state.activeMap = newName.trim();
+      await saveMapConfig(newName.trim());
+    }
+  });
+
+  document.getElementById('btn-delete-map')?.addEventListener('click', async () => {
+    if (!state.activeProject || !state.projectsStore[state.activeProject]?.maps) return;
+    delete state.projectsStore[state.activeProject].maps![state.activeMap];
+    await persistProjectsStore();
+    renderApp();
+  });
+
+  // Export 1-Click SVG (Universal for active tab)
+  document.getElementById('btn-export')?.addEventListener('click', () => {
+    if (state.currentTab === 'multi') {
+      Plotly.downloadImage('plotly-multi-chart', {
+        format: 'svg',
+        width: state.mpWidthCm * 37.795,
+        height: state.mpHeightCm * 37.795,
+        filename: `ChartMate_MultiPlot_${state.mpTopology}`
+      });
+    } else if (state.currentTab === 'maps') {
+      Plotly.downloadImage('plotly-map-chart', {
+        format: 'png',
+        width: state.mapWidthCm * 37.795 * 2,
+        height: state.mapHeightCm * 37.795 * 2,
+        filename: `ChartMate_Map_${state.mapMode}_${state.mapClusterAgg}`
+      });
+    } else {
+      Plotly.downloadImage('plotly-chart', {
+        format: 'svg',
+        width: state.widthCm * 37.795,
+        height: state.heightCm * 37.795,
+        filename: `ChartMate_${state.preset}_figure`
+      });
+    }
   });
 
   // Project Management Listeners
@@ -1001,6 +2020,55 @@ function attachEventListeners() {
       await deleteCanvas(state.activeCanvas);
     }
   });
+}
+
+async function saveMultiPlot(mpName: string) {
+  if (!state.activeProject) {
+    await saveCurrentProject('Progetto_IEQ');
+  }
+  if (!state.activeProject) return;
+  const proj = state.projectsStore[state.activeProject];
+  if (!proj.multiplots) proj.multiplots = {};
+  proj.multiplots[mpName] = {
+    name: mpName,
+    topology: state.mpTopology,
+    share_x: state.mpShareX,
+    auto_lettering: state.mpAutoLettering,
+    preset: state.mpPreset,
+    width_cm: state.mpWidthCm,
+    height_cm: state.mpHeightCm,
+    panels: JSON.parse(JSON.stringify(state.mpPanels))
+  };
+  await persistProjectsStore();
+  renderApp();
+}
+
+async function saveMapConfig(mapName: string) {
+  if (!state.activeProject) {
+    await saveCurrentProject('Progetto_GIS');
+  }
+  if (!state.activeProject) return;
+  const proj = state.projectsStore[state.activeProject];
+  if (!proj.maps) proj.maps = {};
+  proj.maps[mapName] = {
+    name: mapName,
+    mode: state.mapMode,
+    basemap: state.mapBasemap,
+    lat_col: state.geoLatCol,
+    lon_col: state.geoLonCol,
+    coord_format: state.geoCoordFormat,
+    color_col: state.mapColorCol,
+    size_col: state.mapSizeCol,
+    cluster_enabled: state.mapClusterEnabled,
+    cluster_agg: state.mapClusterAgg,
+    cluster_grid_deg: state.mapClusterGridDeg,
+    colorscale: state.mapColorscale,
+    preset: state.mapPreset,
+    width_cm: state.mapWidthCm,
+    height_cm: state.mapHeightCm
+  };
+  await persistProjectsStore();
+  renderApp();
 }
 
 function serializeCanvasConfig(name: string): CanvasConfig {
@@ -1084,6 +2152,19 @@ async function saveCurrentProject(projectName?: string) {
     state.projectsStore[name] = {
       name,
       file_path: state.filePath || '',
+      source_type: state.sourceType,
+      sql_config: {
+        host: state.sqlConfig.host,
+        port: state.sqlConfig.port,
+        database: state.sqlConfig.database,
+        user: state.sqlConfig.user,
+        query: state.sqlQuery
+      },
+      geo_config: {
+        coord_format: state.geoCoordFormat,
+        lat_col: state.geoLatCol,
+        lon_col: state.geoLonCol
+      },
       separator: state.separator,
       decimal: state.decimal,
       has_timestamp: state.hasTimestamp,
@@ -1091,10 +2172,25 @@ async function saveCurrentProject(projectName?: string) {
       timestamp_format: state.timestampFormat,
       active_canvas: state.activeCanvas || 'Canvas_1',
       updated_at: new Date().toISOString(),
-      canvases: {}
+      canvases: {},
+      multiplots: {},
+      maps: {}
     };
   } else {
     state.projectsStore[name].file_path = state.filePath || '';
+    state.projectsStore[name].source_type = state.sourceType;
+    state.projectsStore[name].sql_config = {
+      host: state.sqlConfig.host,
+      port: state.sqlConfig.port,
+      database: state.sqlConfig.database,
+      user: state.sqlConfig.user,
+      query: state.sqlQuery
+    };
+    state.projectsStore[name].geo_config = {
+      coord_format: state.geoCoordFormat,
+      lat_col: state.geoLatCol,
+      lon_col: state.geoLonCol
+    };
     state.projectsStore[name].separator = state.separator;
     state.projectsStore[name].decimal = state.decimal;
     state.projectsStore[name].has_timestamp = state.hasTimestamp;
@@ -1117,6 +2213,22 @@ async function loadProject(projectName: string) {
   if (!p) return;
 
   state.activeProject = projectName;
+  state.sourceType = p.source_type || 'file';
+  if (p.sql_config) {
+    state.sqlConfig = {
+      host: p.sql_config.host,
+      port: p.sql_config.port,
+      database: p.sql_config.database,
+      user: p.sql_config.user,
+      password: ''
+    };
+    state.sqlQuery = p.sql_config.query || 'SELECT * FROM sensor_readings LIMIT 50000;';
+  }
+  if (p.geo_config) {
+    state.geoCoordFormat = p.geo_config.coord_format || 'decimal_degrees';
+    state.geoLatCol = p.geo_config.lat_col || '';
+    state.geoLonCol = p.geo_config.lon_col || '';
+  }
   state.separator = p.separator || 'auto';
   state.decimal = p.decimal || '.';
   state.hasTimestamp = !!p.has_timestamp;
@@ -1135,11 +2247,10 @@ async function loadProject(projectName: string) {
     state.activeCanvas = targetCanvasName;
   }
 
-  if (p.file_path) {
+  if (p.file_path && !p.file_path.startsWith('mysql://')) {
     await loadFile(p.file_path, false);
   } else {
-    state.filePath = null;
-    state.dataset = null;
+    state.filePath = p.file_path || null;
     renderApp();
   }
 }
@@ -1275,7 +2386,7 @@ async function handleFileSelect() {
     const selected = await open({
       multiple: false,
       filters: [
-        { name: 'Supported Datasets', extensions: ['csv', 'xlsx', 'xls', 'tsv', 'txt'] },
+        { name: 'Supported Datasets', extensions: ['parquet', 'pq', 'csv', 'xlsx', 'xls', 'tsv', 'txt'] },
         { name: 'All Files', extensions: ['*'] }
       ]
     });
@@ -1285,6 +2396,79 @@ async function handleFileSelect() {
     }
   } catch (err) {
     console.warn('Dialog selection fallback', err);
+  }
+}
+
+function applyDatasetMetadata(preview: DatasetPreview, resetCanvas: boolean = true) {
+  // Auto-detect Lat/Lon columns
+  const latCandidate = preview.columns.find(c => /^(lat|latitude|latitudine|y_coord|coord_y)$/i.test(c.trim()));
+  const lonCandidate = preview.columns.find(c => /^(lon|lng|long|longitude|longitudine|x_coord|coord_x)$/i.test(c.trim()));
+  if (latCandidate && (!state.geoLatCol || resetCanvas)) state.geoLatCol = latCandidate;
+  if (lonCandidate && (!state.geoLonCol || resetCanvas)) state.geoLonCol = lonCandidate;
+
+  if (resetCanvas) {
+    if (preview.suggested_ts_col) {
+      state.timestampCol = preview.suggested_ts_col;
+      state.selectedX = preview.suggested_ts_col;
+      state.hasTimestamp = true;
+      calculateTimeframeDates('all');
+    } else if (preview.columns.length > 0) {
+      state.hasTimestamp = false;
+      state.timestampCol = '';
+      state.timeframeMode = 'all';
+      state.startDate = '';
+      state.endDate = '';
+      state.selectedX = preview.columns[0];
+    }
+
+    if (preview.suggested_ts_format) {
+      state.timestampFormat = preview.suggested_ts_format;
+    }
+
+    const nonAxisCols = preview.columns.filter(
+      c => c !== state.selectedX && c !== state.geoLatCol && c !== state.geoLonCol
+    );
+
+    // Default Single Canvas Traces Setup
+    state.traces = [];
+    if (nonAxisCols.length > 0) {
+      state.traces.push({
+        column: nonAxisCols[0],
+        axis: 'y1',
+        chartType: 'line',
+        color: '#000000',
+        lineWidth: 2.0,
+        lineDash: 'solid'
+      });
+      state.y1Title = nonAxisCols[0];
+      state.mapColorCol = nonAxisCols[0];
+    }
+
+    if (nonAxisCols.length > 1) {
+      state.traces.push({
+        column: nonAxisCols[1],
+        axis: 'y2',
+        chartType: 'line',
+        color: '#0284c7',
+        lineWidth: 1.8,
+        lineDash: 'dash'
+      });
+      state.y2Title = nonAxisCols[1];
+    }
+
+    // Default MultiPlot Panels Setup
+    const letters = ['(a)', '(b)', '(c)', '(d)'];
+    for (let i = 0; i < 4; i++) {
+      const col = nonAxisCols[i % Math.max(1, nonAxisCols.length)] || '';
+      state.mpPanels[i] = {
+        y1Col: col,
+        y1Type: i === 2 ? 'bar' : 'line',
+        y1Color: DEFAULT_PALETTE[i % DEFAULT_PALETTE.length],
+        y2Col: '',
+        y2Color: '#0284c7',
+        yTitle: col || `Panel ${letters[i]}`
+      };
+    }
   }
 }
 
@@ -1301,58 +2485,50 @@ async function loadFile(path: string, resetCanvas: boolean = true) {
 
     const preview = await invoke<DatasetPreview>('read_dataset_sample', { filePath: path, options });
     state.dataset = preview;
-
-    if (resetCanvas) {
-      // Automatic Metadata Assignment
-      if (preview.suggested_ts_col) {
-        state.timestampCol = preview.suggested_ts_col;
-        state.selectedX = preview.suggested_ts_col;
-        state.hasTimestamp = true;
-        calculateTimeframeDates('all');
-      } else if (preview.columns.length > 0) {
-        state.hasTimestamp = false;
-        state.timestampCol = '';
-        state.timeframeMode = 'all';
-        state.startDate = '';
-        state.endDate = '';
-        state.selectedX = preview.columns[0];
-      }
-
-      if (preview.suggested_ts_format) {
-        state.timestampFormat = preview.suggested_ts_format;
-      }
-
-      // Default Traces Setup
-      state.traces = [];
-      if (preview.columns.length > 1) {
-        state.traces.push({
-          column: preview.columns[1],
-          axis: 'y1',
-          chartType: 'line',
-          color: '#000000',
-          lineWidth: 2.0,
-          lineDash: 'solid'
-        });
-        state.y1Title = preview.columns[1];
-      }
-
-      if (preview.columns.length > 2) {
-        state.traces.push({
-          column: preview.columns[2],
-          axis: 'y2',
-          chartType: 'line',
-          color: '#0284c7',
-          lineWidth: 1.8,
-          lineDash: 'dash'
-        });
-        state.y2Title = preview.columns[2];
-      }
-    }
+    applyDatasetMetadata(preview, resetCanvas);
 
     renderApp();
   } catch (err) {
     alert(`Errore lettura file locale: ${err}`);
   }
+}
+
+function parseNumericValue(rawVal: any): number | null {
+  let valStr = String(rawVal ?? '').trim();
+  if (valStr === '' || valStr === 'null' || valStr === 'nan' || valStr === 'None') return null;
+
+  if (valStr.includes(',') && valStr.includes('.')) {
+    if (valStr.indexOf('.') < valStr.indexOf(',')) {
+      valStr = valStr.replace(/\./g, '').replace(',', '.');
+    } else {
+      valStr = valStr.replace(/,/g, '');
+    }
+  } else if (valStr.includes(',')) {
+    valStr = valStr.replace(',', '.');
+  }
+
+  const num = parseFloat(valStr);
+  return isNaN(num) ? null : num;
+}
+
+function parseGeoCoordinate(rawVal: any, format: 'decimal_degrees' | 'dms'): number | null {
+  if (rawVal === null || rawVal === undefined) return null;
+  const str = String(rawVal).trim();
+  if (!str) return null;
+
+  if (format === 'dms' || /[°'"NSEW]/i.test(str)) {
+    const m = str.match(/(-?\d+(?:\.\d+)?)\s*[°d:]?\s*(\d+(?:\.\d+)?)?\s*['m:]?\s*(\d+(?:\.\d+)?)?\s*["s]?\s*([NSEW])?/i);
+    if (m) {
+      const deg = parseFloat(m[1]) || 0;
+      const min = parseFloat(m[2]) || 0;
+      const sec = parseFloat(m[3]) || 0;
+      const dir = (m[4] || '').toUpperCase();
+      let dd = Math.abs(deg) + min / 60.0 + sec / 3600.0;
+      if (deg < 0 || dir === 'S' || dir === 'W') dd = -dd;
+      return isNaN(dd) ? null : dd;
+    }
+  }
+  return parseNumericValue(str);
 }
 
 function updateChart() {
@@ -1397,23 +2573,7 @@ function updateChart() {
       const yIdx = state.dataset!.columns.indexOf(t.column);
       if (yIdx === -1) return;
 
-      const yVals = activeRows.map(r => {
-        let valStr = String(r[yIdx] ?? '').trim();
-        if (valStr === '' || valStr === 'null' || valStr === 'nan' || valStr === 'None') return null;
-
-        if (valStr.includes(',') && valStr.includes('.')) {
-          if (valStr.indexOf('.') < valStr.indexOf(',')) {
-            valStr = valStr.replace(/\./g, '').replace(',', '.');
-          } else {
-            valStr = valStr.replace(/,/g, '');
-          }
-        } else if (valStr.includes(',')) {
-          valStr = valStr.replace(',', '.');
-        }
-
-        const num = parseFloat(valStr);
-        return isNaN(num) ? null : num;
-      });
+      const yVals = activeRows.map(r => parseNumericValue(r[yIdx]));
 
       // Plotly Trace Configuration
       let pType = 'scatter';
@@ -1594,6 +2754,452 @@ function updateChart() {
       layer: 'below'
     });
   }
+
+  Plotly.newPlot(chartEl, traces, layout, { responsive: true, displayModeBar: false });
+}
+
+function updateMultiPlotChart() {
+  const chartEl = document.getElementById('plotly-multi-chart');
+  if (!chartEl) return;
+
+  const ratio = state.mpWidthCm / state.mpHeightCm;
+  let pxW = 860;
+  let pxH = Math.round(pxW / ratio);
+  if (state.mpPreset === 'single_stack') {
+    pxW = 550;
+    pxH = Math.round(pxW / ratio);
+  } else if (state.mpPreset === 'square_grid') {
+    pxW = 680;
+    pxH = 680;
+  }
+
+  const topo = state.mpTopology;
+  const rows = topo === '3x1' ? 3 : (topo === '2x1' || topo === '2x2' ? 2 : 1);
+  const cols = topo === '2x2' || topo === '1x2' ? 2 : 1;
+  const panelCount = rows * cols;
+  const letters = ['(a)', '(b)', '(c)', '(d)'];
+
+  const traces: any[] = [];
+  const annotations: any[] = [];
+  const layout: any = {
+    width: pxW,
+    height: pxH,
+    margin: { l: 65, r: 55, t: 45, b: 55 },
+    paper_bgcolor: '#ffffff',
+    plot_bgcolor: '#ffffff',
+    font: { family: state.fontFamily, size: state.fontSize, color: '#000000' },
+    legend: {
+      orientation: 'h',
+      x: 0.5,
+      y: 1.07,
+      xanchor: 'center',
+      font: { size: state.fontSize - 1, color: '#000000' }
+    },
+    annotations
+  };
+
+  let xVals: any[] = [];
+  let activeRows = state.dataset?.rows || [];
+  if (state.dataset && state.selectedX) {
+    const xIdx = state.dataset.columns.indexOf(state.selectedX);
+    if (xIdx !== -1) {
+      xVals = activeRows.map(r => r[xIdx]);
+    }
+  }
+  if (xVals.length === 0) {
+    xVals = Array.from({ length: 24 }, (_, i) => `2026-09-01 ${String(i).padStart(2, '0')}:00`);
+  }
+
+  const vGap = rows === 3 ? 0.08 : (rows === 2 ? 0.11 : 0);
+  const hGap = cols === 2 ? 0.12 : 0;
+  const cellH = (1.0 - vGap * (rows - 1)) / rows;
+  const cellW = (1.0 - hGap * (cols - 1)) / cols;
+
+  for (let i = 0; i < panelCount; i++) {
+    const rIdx = Math.floor(i / cols);
+    const cIdx = i % cols;
+    const xDom0 = Number((cIdx * (cellW + hGap)).toFixed(4));
+    const xDom1 = Number((xDom0 + cellW).toFixed(4));
+    const yDom1 = Number((1.0 - rIdx * (cellH + vGap)).toFixed(4));
+    const yDom0 = Number(Math.max(0, yDom1 - cellH).toFixed(4));
+
+    const axNum = i === 0 ? '' : String(i + 1);
+    const xAxisName = `xaxis${axNum}`;
+    const yAxisName = `yaxis${axNum}`;
+    const xRef = `x${axNum}`;
+    const yRef = `y${axNum}`;
+
+    const pCfg = state.mpPanels[i] || {
+      y1Col: '',
+      y1Type: 'line',
+      y1Color: DEFAULT_PALETTE[i % DEFAULT_PALETTE.length],
+      y2Col: '',
+      y2Color: '#0284c7',
+      yTitle: `Panel ${letters[i]}`
+    };
+
+    const isBottomRow = rIdx === rows - 1;
+    const hideXTicks = state.mpShareX && cols === 1 && !isBottomRow;
+
+    layout[xAxisName] = {
+      domain: [xDom0, xDom1],
+      anchor: yRef,
+      showticklabels: !hideXTicks,
+      title: isBottomRow ? { text: state.selectedX || 'Time', font: { size: state.fontSize, color: '#000000', weight: 600 } } : undefined,
+      gridcolor: '#e2e8f0',
+      linecolor: '#000000',
+      linewidth: 1.1,
+      showline: true,
+      mirror: true,
+      tickfont: { family: 'JetBrains Mono, monospace', size: state.fontSize - 2, color: '#000000' }
+    };
+    if (state.mpShareX && i > 0) {
+      layout[xAxisName].matches = 'x';
+    }
+
+    layout[yAxisName] = {
+      domain: [yDom0, yDom1],
+      anchor: xRef,
+      title: { text: pCfg.yTitle || pCfg.y1Col || `Panel ${letters[i]}`, font: { size: state.fontSize, color: '#000000', weight: 600 } },
+      gridcolor: '#e2e8f0',
+      linecolor: '#000000',
+      linewidth: 1.1,
+      showline: true,
+      mirror: !pCfg.y2Col,
+      tickfont: { family: 'JetBrains Mono, monospace', size: state.fontSize - 2, color: '#000000' }
+    };
+
+    // Primary Y1 Trace
+    let y1Vals: (number | null)[] = [];
+    if (state.dataset && pCfg.y1Col) {
+      const yIdx = state.dataset.columns.indexOf(pCfg.y1Col);
+      if (yIdx !== -1) {
+        y1Vals = activeRows.map(r => parseNumericValue(r[yIdx]));
+      }
+    } else {
+      y1Vals = xVals.map((_, k) => 20 + (i + 1) * 2 * Math.sin((k + i * 3) / 3));
+    }
+
+    traces.push({
+      x: xVals,
+      y: y1Vals,
+      name: `${letters[i]} ${pCfg.y1Col || pCfg.yTitle}`,
+      xaxis: xRef,
+      yaxis: yRef,
+      type: pCfg.y1Type === 'bar' ? 'bar' : 'scatter',
+      mode: pCfg.y1Type === 'scatter' ? 'markers' : (pCfg.y1Type === 'bar' ? undefined : 'lines'),
+      fill: pCfg.y1Type === 'area' ? 'tozeroy' : undefined,
+      line: { color: pCfg.y1Color, width: 1.9 },
+      marker: { color: pCfg.y1Color, size: 4 }
+    });
+
+    // Optional Secondary Y2 Trace in same Panel
+    if (state.dataset && pCfg.y2Col) {
+      const y2Idx = state.dataset.columns.indexOf(pCfg.y2Col);
+      if (y2Idx !== -1) {
+        const y2AxisId = i + 10; // yaxis10, yaxis11...
+        const y2Ref = `y${y2AxisId}`;
+        const y2Vals = activeRows.map(r => parseNumericValue(r[y2Idx]));
+
+        layout[`yaxis${y2AxisId}`] = {
+          domain: [yDom0, yDom1],
+          anchor: xRef,
+          overlaying: yRef,
+          side: 'right',
+          title: { text: pCfg.y2Col, font: { size: state.fontSize - 1, color: pCfg.y2Color, weight: 600 } },
+          gridcolor: 'transparent',
+          linecolor: pCfg.y2Color,
+          linewidth: 1.1,
+          showline: true,
+          tickfont: { family: 'JetBrains Mono, monospace', size: state.fontSize - 2, color: pCfg.y2Color }
+        };
+
+        traces.push({
+          x: xVals,
+          y: y2Vals,
+          name: `${letters[i]} ${pCfg.y2Col} (Y2)`,
+          xaxis: xRef,
+          yaxis: y2Ref,
+          type: 'scatter',
+          mode: 'lines',
+          line: { color: pCfg.y2Color, width: 1.6, dash: 'dash' }
+        });
+      }
+    }
+
+    // Academic Auto-Lettering Badge (a), (b), (c), (d)
+    if (state.mpAutoLettering) {
+      annotations.push({
+        text: `<b>${letters[i]}</b>`,
+        xref: 'paper',
+        yref: 'paper',
+        x: xDom0 + 0.015,
+        y: yDom1 - 0.02,
+        xanchor: 'left',
+        yanchor: 'top',
+        showarrow: false,
+        font: { family: state.fontFamily, size: state.fontSize + 2, color: '#000000' },
+        bgcolor: 'rgba(255,255,255,0.88)',
+        borderpad: 2
+      });
+    }
+  }
+
+  Plotly.newPlot(chartEl, traces, layout, { responsive: true, displayModeBar: false });
+}
+
+function computeMathematicalAggregation(values: number[], rawStrings: string[], agg: string): { val: number; label: string } {
+  if (agg === 'count') {
+    return { val: rawStrings.length, label: `N = ${rawStrings.length}` };
+  }
+  if (agg === 'mode') {
+    const freq: Record<string, number> = {};
+    let bestKey = rawStrings[0] || '0';
+    let bestCount = 0;
+    for (const s of rawStrings) {
+      const k = s.trim();
+      if (!k) continue;
+      freq[k] = (freq[k] || 0) + 1;
+      if (freq[k] > bestCount) {
+        bestCount = freq[k];
+        bestKey = k;
+      }
+    }
+    const numVal = parseNumericValue(bestKey) ?? bestCount;
+    return { val: numVal, label: `Moda: ${bestKey} (${bestCount}x)` };
+  }
+
+  if (values.length === 0) return { val: 0, label: 'N/A' };
+
+  if (agg === 'sum') {
+    const s = values.reduce((a, b) => a + b, 0);
+    return { val: s, label: `Σ = ${s.toFixed(2)}` };
+  }
+  if (agg === 'max') {
+    const m = Math.max(...values);
+    return { val: m, label: `Max = ${m.toFixed(2)}` };
+  }
+  if (agg === 'min') {
+    const m = Math.min(...values);
+    return { val: m, label: `Min = ${m.toFixed(2)}` };
+  }
+  // Default: Mean (μ)
+  const mean = values.reduce((a, b) => a + b, 0) / values.length;
+  return { val: mean, label: `μ = ${mean.toFixed(2)}` };
+}
+
+function updateMapChart() {
+  const chartEl = document.getElementById('plotly-map-chart');
+  if (!chartEl) return;
+
+  const ratio = state.mapWidthCm / state.mapHeightCm;
+  let pxW = 850;
+  let pxH = Math.round(pxW / ratio);
+  if (state.mapPreset === 'square') {
+    pxW = 620;
+    pxH = 620;
+  } else if (state.mapPreset === 'single') {
+    pxW = 550;
+    pxH = Math.round(pxW / ratio);
+  }
+
+  const lats: number[] = [];
+  const lons: number[] = [];
+  const vals: number[] = [];
+  const hoverTexts: string[] = [];
+
+  if (state.dataset && state.geoLatCol && state.geoLonCol) {
+    const latIdx = state.dataset.columns.indexOf(state.geoLatCol);
+    const lonIdx = state.dataset.columns.indexOf(state.geoLonCol);
+    const colIdx = state.mapColorCol ? state.dataset.columns.indexOf(state.mapColorCol) : -1;
+
+    if (latIdx !== -1 && lonIdx !== -1) {
+      if (state.mapClusterEnabled) {
+        // Spatial Grid Binning & Mathematical Aggregation
+        const grid = state.mapClusterGridDeg || 0.005;
+        const bins: Record<string, { lats: number[]; lons: number[]; nums: number[]; raws: string[] }> = {};
+
+        for (const r of state.dataset.rows) {
+          const lat = parseGeoCoordinate(r[latIdx], state.geoCoordFormat);
+          const lon = parseGeoCoordinate(r[lonIdx], state.geoCoordFormat);
+          if (lat === null || lon === null || Math.abs(lat) > 90 || Math.abs(lon) > 180) continue;
+
+          const bLat = Math.round(lat / grid) * grid;
+          const bLon = Math.round(lon / grid) * grid;
+          const key = `${bLat.toFixed(5)}_${bLon.toFixed(5)}`;
+
+          if (!bins[key]) {
+            bins[key] = { lats: [], lons: [], nums: [], raws: [] };
+          }
+          bins[key].lats.push(lat);
+          bins[key].lons.push(lon);
+
+          const rawStr = colIdx !== -1 ? String(r[colIdx] ?? '') : '1';
+          bins[key].raws.push(rawStr);
+          const num = colIdx !== -1 ? parseNumericValue(r[colIdx]) : 1;
+          if (num !== null) bins[key].nums.push(num);
+        }
+
+        Object.values(bins).forEach(b => {
+          const cLat = b.lats.reduce((a, c) => a + c, 0) / b.lats.length;
+          const cLon = b.lons.reduce((a, c) => a + c, 0) / b.lons.length;
+          const aggRes = computeMathematicalAggregation(b.nums, b.raws, state.mapClusterAgg);
+
+          lats.push(cLat);
+          lons.push(cLon);
+          vals.push(aggRes.val);
+          hoverTexts.push(
+            `<b>Cluster (${b.lats.length} pt)</b><br>Lat: ${cLat.toFixed(4)}, Lon: ${cLon.toFixed(4)}<br>${state.mapColorCol || 'Val'}: <b>${aggRes.label}</b>`
+          );
+        });
+
+        state.mapLastClusterCount = lats.length;
+        state.mapLastSummaryStat = `${state.mapClusterAgg.toUpperCase()} (${lats.length} celle)`;
+        const cntEl = document.getElementById('lbl-cluster-count');
+        const stEl = document.getElementById('lbl-cluster-stat');
+        if (cntEl) cntEl.textContent = String(state.mapLastClusterCount);
+        if (stEl) stEl.textContent = state.mapLastSummaryStat;
+      } else {
+        // Raw Unclustered Points
+        for (const r of state.dataset.rows) {
+          const lat = parseGeoCoordinate(r[latIdx], state.geoCoordFormat);
+          const lon = parseGeoCoordinate(r[lonIdx], state.geoCoordFormat);
+          if (lat === null || lon === null || Math.abs(lat) > 90 || Math.abs(lon) > 180) continue;
+
+          const num = colIdx !== -1 ? (parseNumericValue(r[colIdx]) ?? 0) : 1;
+          lats.push(lat);
+          lons.push(lon);
+          vals.push(num);
+          hoverTexts.push(
+            `Lat: ${lat.toFixed(5)}, Lon: ${lon.toFixed(5)}<br>${state.mapColorCol || 'Valore'}: <b>${colIdx !== -1 ? r[colIdx] : num}</b>`
+          );
+        }
+      }
+    }
+  }
+
+  // Fallback Demo Geo Data (Milan Politecnico / Urban Sensor Network) if no geo columns yet
+  if (lats.length === 0) {
+    const demoCoords = [
+      [45.4781, 9.2270, 21.4],
+      [45.4795, 9.2292, 22.8],
+      [45.4768, 9.2251, 20.9],
+      [45.4810, 9.2315, 24.1],
+      [45.4752, 9.2288, 23.2]
+    ];
+    for (const [la, lo, v] of demoCoords) {
+      lats.push(la);
+      lons.push(lo);
+      vals.push(v);
+      hoverTexts.push(`Sensore Demo<br>Lat: ${la}, Lon: ${lo}<br>Valore: <b>${v} °C</b>`);
+    }
+  }
+
+  // Auto-Fit Bounding Box & Zoom Calculation
+  const minLat = Math.min(...lats);
+  const maxLat = Math.max(...lats);
+  const minLon = Math.min(...lons);
+  const maxLon = Math.max(...lons);
+  const centerLat = (minLat + maxLat) / 2;
+  const centerLon = (minLon + maxLon) / 2;
+  const maxSpan = Math.max(maxLat - minLat, maxLon - minLon, 0.002);
+  let zoom = Math.floor(Math.log2(360 / maxSpan)) - 1;
+  zoom = Math.max(1, Math.min(16, zoom));
+
+  const traces: any[] = [];
+  if (state.mapMode === 'density') {
+    traces.push({
+      type: 'densitymapbox',
+      lat: lats,
+      lon: lons,
+      z: vals,
+      radius: 22,
+      colorscale: state.mapColorscale,
+      colorbar: {
+        title: { text: state.mapColorCol || 'Metric', font: { size: state.fontSize, color: '#000000' } },
+        tickfont: { family: 'JetBrains Mono, monospace', size: state.fontSize - 1, color: '#000000' }
+      },
+      hoverinfo: 'text',
+      text: hoverTexts
+    });
+  } else if (state.mapMode === 'track') {
+    traces.push({
+      type: 'scattermapbox',
+      mode: 'lines+markers',
+      lat: lats,
+      lon: lons,
+      line: { width: 2.8, color: '#059669' },
+      marker: {
+        size: 9,
+        color: vals,
+        colorscale: state.mapColorscale,
+        showscale: true,
+        colorbar: {
+          title: { text: state.mapColorCol || 'Metric', font: { size: state.fontSize, color: '#000000' } },
+          tickfont: { family: 'JetBrains Mono, monospace', size: state.fontSize - 1, color: '#000000' }
+        }
+      },
+      hoverinfo: 'text',
+      text: hoverTexts,
+      name: state.mapColorCol || 'GPS Track'
+    });
+  } else {
+    // Bubble Scatter Map
+    traces.push({
+      type: 'scattermapbox',
+      mode: 'markers',
+      lat: lats,
+      lon: lons,
+      marker: {
+        size: state.mapClusterEnabled ? 15 : 11,
+        opacity: 0.9,
+        color: vals,
+        colorscale: state.mapColorscale,
+        showscale: true,
+        colorbar: {
+          title: { text: `${state.mapColorCol || 'Metric'} (${state.mapClusterEnabled ? state.mapClusterAgg.toUpperCase() : 'Raw'})`, font: { size: state.fontSize, color: '#000000' } },
+          tickfont: { family: 'JetBrains Mono, monospace', size: state.fontSize - 1, color: '#000000' }
+        }
+      },
+      hoverinfo: 'text',
+      text: hoverTexts,
+      name: state.mapColorCol || 'Geo Points'
+    });
+  }
+
+  // Base Map Tile Configuration (Free Vector Styles + Custom Raster Layers for Satellite & Topo)
+  const mapboxCfg: any = {
+    center: { lat: centerLat, lon: centerLon },
+    zoom
+  };
+
+  if (state.mapBasemap === 'esri-satellite') {
+    mapboxCfg.style = 'white-bg';
+    mapboxCfg.layers = [{
+      sourcetype: 'raster',
+      source: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
+      below: 'traces'
+    }];
+  } else if (state.mapBasemap === 'opentopomap') {
+    mapboxCfg.style = 'white-bg';
+    mapboxCfg.layers = [{
+      sourcetype: 'raster',
+      source: ['https://a.tile.opentopomap.org/{z}/{x}/{y}.png'],
+      below: 'traces'
+    }];
+  } else {
+    mapboxCfg.style = state.mapBasemap; // carto-positron, open-street-map, carto-darkmatter
+  }
+
+  const layout: any = {
+    width: pxW,
+    height: pxH,
+    margin: { l: 15, r: 15, t: 15, b: 15 },
+    paper_bgcolor: '#ffffff',
+    font: { family: state.fontFamily, size: state.fontSize, color: '#000000' },
+    mapbox: mapboxCfg,
+    showlegend: false
+  };
 
   Plotly.newPlot(chartEl, traces, layout, { responsive: true, displayModeBar: false });
 }

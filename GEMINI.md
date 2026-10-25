@@ -7,10 +7,10 @@ Leggendo questo file all'inizio di una nuova chat, l'agente saprà istantaneamen
 
 ## 📌 Identikit di ChartMate
 
-* **Scopo**: Studio desktop per ricercatori e ingegneri per creare grafici e figure scientifiche *journal-ready* ad alta risoluzione in pochi secondi, senza dover scrivere script Matplotlib/Seaborn.
-* **Tech Stack Desktop Nativo**: **Rust (Tauri v2)**, **TypeScript**, **Vite**, **Plotly.js**, PapaParse, SheetJS.
-* **Eseguibile Standalone**: Singolo file Windows [`ChartMate.exe`](file:///c:/Users/rober/Documents/GitHub/ChartMate/ChartMate.exe) da appena **23.4 MB**, avvio < 1s, zero conflitti di porte, RAM < 60 MB.
-* **Supporto SharePoint & Filesystem**: Drag-and-drop diretto e dialog nativo Windows per leggere file da percorsi locali/rete senza duplicare dati.
+* **Scopo**: Studio desktop per ricercatori e ingegneri per creare grafici, matrici multi-pannello e mappe GIS *journal-ready* ad alta risoluzione in pochi secondi, senza dover scrivere script Matplotlib/Seaborn/Geopandas.
+* **Tech Stack Desktop Nativo**: **Rust (Tauri v2)**, **TypeScript**, **Vite**, **Plotly.js**, crate Rust `parquet`, `mysql`, `calamine`, `csv`.
+* **Eseguibile Standalone**: Singolo file Windows [`ChartMate.exe`](file:///c:/Users/rober/Documents/GitHub/ChartMate/ChartMate.exe), avvio < 1s, zero conflitti di porte, RAM < 60 MB.
+* **Supporto SharePoint, Parquet, MySQL & Filesystem**: Drag-and-drop diretto e dialog nativo Windows per leggere file CSV, Excel, Apache Parquet (`.parquet`, `.pq`) o connettersi a database relazionali **MySQL**.
 * **Design System**: ChartMate Clean Scientific (`#f8fafc`, bianco puro, accento `#059669` Emerald, font *Outfit* e *JetBrains Mono*).
 * **Guida Completa di Dettaglio**: Leggi [`AGENTS.md`](file:///c:/Users/rober/Documents/GitHub/ChartMate/AGENTS.md) per l'architettura dettagliata di ogni modulo.
 * **Branch di Backup Storico**: Il precedente codice Python/Dash è salvato al 100% nel branch Git `legacy-python-dash`.
@@ -19,26 +19,26 @@ Leggendo questo file all'inizio di una nuova chat, l'agente saprà istantaneamen
 
 ## 🎯 Stato Attuale: Dove Siamo Arrivati
 
-1. **Backend Rust Nativo & Filesystem I/O ([`tauri-app/src-tauri/src/lib.rs`](file:///c:/Users/rober/Documents/GitHub/ChartMate/tauri-app/src-tauri/src/lib.rs))**:
-   - Lettura e parsing rapido di file CSV, TSV e fogli Excel (`.xlsx`, `.xls`) con auto-detection delimitatori (`,`, `;`, `\t`).
+1. **Backend Rust Nativo, Parquet, MySQL & Filesystem I/O ([`tauri-app/src-tauri/src/lib.rs`](file:///c:/Users/rober/Documents/GitHub/ChartMate/tauri-app/src-tauri/src/lib.rs))**:
+   - Lettura e parsing rapido di file **Apache Parquet (`.parquet`, `.pq`)**, CSV, TSV e fogli Excel (`.xlsx`, `.xls`) con auto-detection delimitatori (`,`, `;`, `\t`) e decodifica automatica dei timestamp logici Parquet.
+   - Connettore nativo **MySQL** (`test_sql_connection`, `execute_sql_query`) con `rustls-tls` (zero dipendenze OpenSSL esterne) per interrogare tabelle e viste SQL direttamente dalla Tab 1.
    - Permessi Windows granulari (`dialog:allow-open`, `fs:allow-read-file`) per aprire percorsi SharePoint senza restrizioni.
-2. **Controller Grafico Scientifico Client-Side ([`tauri-app/src/main.ts`](file:///c:/Users/rober/Documents/GitHub/ChartMate/tauri-app/src/main.ts))**:
-   - Rendering fluido a 60 FPS con Plotly.js.
-   - **Fix Plotly Data Engine**: Corretto l'uso dei tipi traccia (linee come `scatter` con `mode: 'lines'`, scatter come `markers`, area come `lines` + `tozeroy`, barre come `bar`).
-   - **Gestione Timeframe e Normalizzazione**: Bypass del filtro in modalità *Full* (100% dati plottati) e normalizzatore `toISODate()` per comparazioni cronologiche per *1 Day*, *1 Week*, *1 Month* e *Custom*.
-   - **Parsing Numerico Robusto**: Sanitizzazione completa dei numeri con virgola europea e protezione per valori `0.0`.
-   - **Isolamento CSS Schede**: Stile esplicito `.view-panel` per prevenire collassi del contenitore Plotly.
-   - Gestione assi multi-variabile ($X$, $Y_1, Y_2, Y_3, Y_4$) con titoli, offset e unità di misura indipendenti.
-   - **Trace Styler con Dropdown Dedicati**: Selettore a tendina dedicato per aggiungere colonne Y specifiche (`+ Aggiungi Serie`) e selettore a tendina all'interno di ogni card traccia per cambiare al volo la variabile plottata.
-   - **Preset Tipografici WYSIWYG**: *Single Column* ($8.5\text{ cm}$), *Double Column* ($17\text{ cm}$), *Square* ($12\times 12\text{ cm}$).
-   - **Smart Annotations**: Peak & Valley Tracker (Global, Daily, Weekly) e Comfort Band IEQ ($[20, 22]^\circ\text{C}$ inverno, $[24, 26]^\circ\text{C}$ estate, custom).
-   - **Export Vector 1-Click**: Esportazione SVG diretta alle dimensioni fisiche esatte.
-3. **Persistenza Progetti e Memoria Stato Grafici (Step 3 Completato)**:
-   - **Salvataggio JSON Nativo Portabile (`projects.json`)**: Implementati i comandi Rust `load_projects_store` e `save_projects_store` in `lib.rs`, con risoluzione automatica della directory dell'eseguibile `ChartMate.exe`.
-   - **Gestione Progetti Completa (Tab 1)**: Selettore progetti salvati, creazione nuovo progetto, salvataggio con nome ed eliminazione, con persistenza del percorso file e dei parametri del parser.
-   - **Memoria Grafico Singolo / Canvas (Tab 2)**: Selettore canvas del progetto attivo, salvataggio al volo, creazione nuovo canvas ed eliminazione. Ripristino al 100% di tutti i 17 parametri grafici (assi X e Y1-Y4, serie, tratteggi, colori, timeframe, proporzioni, annotazioni e soglie).
-4. **Eseguibile Release Windows Generato**:
-   - Compilazione ottimizzata con toolchain GNU: [`ChartMate.exe`](file:///c:/Users/rober/Documents/GitHub/ChartMate/ChartMate.exe) pronto nella cartella principale (**25.82 MB**), testato e funzionante con memoria persistente.
+2. **Tab 1 — Data Source, SQL & Configuratore Geospaziale ([`tauri-app/src/main.ts`](file:///c:/Users/rober/Documents/GitHub/ChartMate/tauri-app/src/main.ts))**:
+   - Selettore sorgente dati: *File Locale (CSV/Excel/Parquet)* vs *Database SQL (MySQL)*.
+   - Auto-rilevamento intelligente delle colonne di Latitudine e Longitudine e scelta del formato coordinate (*Gradi Decimali DD* vs *Gradi Minuti Secondi DMS*).
+3. **Tab 2 — Single Canvas Studio**:
+   - Rendering fluido a 60 FPS con Plotly.js, fino a 4 assi Y indipendenti ($Y_1, Y_2, Y_3, Y_4$).
+   - Trace Styler con dropdown dedicati, preset tipografici WYSIWYG (*Single Column* $8.5\text{ cm}$, *Double Column* $17\text{ cm}$, *Square* $12\times 12\text{ cm}$), Peak & Valley Tracker e Comfort Band IEQ.
+4. **Tab 3 — MultiPlot Grid Studio (Sbloccata e Funzionante)**:
+   - Topologie 1-Click: *Stack Verticale 3×1*, *Stack Verticale 2×1*, *Matrice 2×2* (4 quadranti) e *Side-by-Side 1×2*.
+   - Asse X condiviso e sincronizzato (`matches: 'x'`) con occultamento automatico dei label intermedi e **Auto-Lettering Accademico** **`(a)`**, **`(b)`**, **`(c)`**, **`(d)`**.
+   - Configurazione per singolo pannello con serie primaria $Y_1$, serie secondaria $Y_2$ (doppio asse nel pannello) e importazione diretta da qualsiasi Canvas salvato.
+5. **Tab 4 — Maps & Geo-Analytics Studio (Nuova Scheda Cartografica)**:
+   - 3 modalità di visualizzazione: *Bubble Scatter Map*, *Spatial Density Heatmap*, *GPS Trajectory / Track*.
+   - 5 Base Map Providers: *CartoDB Positron*, *ESRI World Imagery Satellite*, *OpenStreetMap*, *CartoDB Dark Matter*, *OpenTopoMap*.
+   - **Motore di Clusterizzazione Spaziale & Operazioni Matematiche**: Griglia spaziale configurabile ($0.0005^\circ \div 0.10^\circ$) con calcolo automatico su ciascuna cella di **Media ($\mu$)**, **Somma ($\Sigma$)**, **Moda ($Mo$)**, **Max**, **Min** e **Conteggio ($N$)**.
+6. **Persistenza Unificata (`projects.json`)**:
+   - Salvataggio completo di progetti, parametri SQL (senza password), coordinate GIS, Canvas singoli, MultiPlot e Mappe GIS.
 
 ---
 
@@ -50,10 +50,8 @@ Leggendo questo file all'inizio di una nuova chat, l'agente saprà istantaneamen
      - [`PROJECT_STATUS.md`](file:///c:/Users/rober/Documents/GitHub/ChartMate/PROJECT_STATUS.md)
      - [`ChartMate_Structure.txt`](file:///c:/Users/rober/Documents/GitHub/ChartMate/ChartMate_Structure.txt)
      - [`AGENTS.md`](file:///c:/Users/rober/Documents/GitHub/ChartMate/AGENTS.md) e [`GEMINI.md`](file:///c:/Users/rober/Documents/GitHub/ChartMate/GEMINI.md)
-2. **Usa Sempre Polars (No Pandas)**: Tutte le elaborazioni dati avvengono tramite `polars as pl`. Usa la funzione `_clean_series` in `chart_engine.py` per gestire le stringhe con virgola decimale.
-3. **Pagine Snelle e Engine Disaccoppiato**: I file in `pages/` gestiscono solo il layout Dash e il cablaggio dei callback; tutta la logica di generazione delle figure Plotly risiede in [`utils/chart_engine.py`](file:///c:/Users/rober/Documents/GitHub/ChartMate/utils/chart_engine.py).
-4. **Dash Duplicate Outputs**: Ogni volta che un output Dash è condiviso da più callback, usa `allow_duplicate=True` e `prevent_initial_call=True`.
-5. **Ridimensionamento Plotly**: Calcola sempre dimensioni esplicite `width` e `height` in pixel tramite `_calc_aspect_dimensions()` e impostale in `fig.layout` con `autosize=False`.
+2. **Non Eseguire `cargo clean` Inutilmente**: Mantieni la cache incrementale di Rust in `tauri-app/src-tauri/target` per compilare le release in pochi secondi.
+3. **Contrasto Scientifico Rigoroso**: Tutti i testi, assi, tick e legende dei grafici devono essere in nero puro (`#000000`) ad alto contrasto con i font *Outfit* e *JetBrains Mono*.
 
 ---
 
@@ -65,4 +63,3 @@ Leggendo questo file all'inizio di una nuova chat, l'agente saprà istantaneamen
    - Ordinamento decrescente delle grandezze con calcolo automatico delle ore di superamento soglia.
 3. **Compilatore Report PDF Multi-Grafico**:
    - Generazione di schede o report multipagina PDF che combinano più grafici salvati con didascalie e metadati.
-4. **Connettori Database (SQLite / InfluxDB)**.

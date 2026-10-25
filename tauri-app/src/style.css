@@ -474,3 +474,153 @@ table.cm-table tr:hover {
   border-radius: 4px;
   cursor: pointer;
 }
+
+/* Source Mode Toggle (File vs SQL) */
+.source-toggle-group {
+  display: flex;
+  background: var(--surface-hover);
+  padding: 3px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  margin-bottom: 12px;
+}
+
+.source-toggle-btn {
+  flex: 1;
+  padding: 6px 8px;
+  font-family: inherit;
+  font-size: 0.76rem;
+  font-weight: 600;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.source-toggle-btn.active {
+  background: #ffffff;
+  color: var(--primary);
+  box-shadow: var(--shadow-sm);
+}
+
+/* SQL Query Editor */
+textarea.sql-editor {
+  width: 100%;
+  min-height: 76px;
+  padding: 8px 10px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  background: #0f172a;
+  color: #e2e8f0;
+  border: 1px solid #334155;
+  border-radius: var(--radius);
+  resize: vertical;
+  outline: none;
+}
+
+textarea.sql-editor:focus {
+  border-color: var(--primary);
+}
+
+/* MultiPlot Topology Selector */
+.topo-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.topo-btn {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 10px;
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--text-dark);
+  transition: all 0.15s ease;
+}
+
+.topo-btn:hover {
+  background: var(--surface-hover);
+}
+
+.topo-btn.active {
+  background: var(--primary-light);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+/* MultiPlot Panel Cards */
+.mp-panel-card {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--primary);
+  border-radius: 6px;
+  padding: 10px;
+  margin-bottom: 10px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+.mp-panel-badge {
+  font-family: 'Outfit', sans-serif;
+  font-weight: 700;
+  font-size: 0.82rem;
+  background: #000000;
+  color: #ffffff;
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+
+/* Maps Mode & Clustering Cards */
+.map-mode-group {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.map-mode-btn {
+  padding: 7px 6px;
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-align: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--text-dark);
+  transition: all 0.15s ease;
+}
+
+.map-mode-btn:hover {
+  background: var(--surface-hover);
+}
+
+.map-mode-btn.active {
+  background: var(--sky-light);
+  border-color: var(--sky);
+  color: var(--sky);
+}
+
+.cluster-stats-banner {
+  background: var(--bg-app);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin-top: 8px;
+  font-size: 0.75rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+

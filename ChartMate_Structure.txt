@@ -1,24 +1,24 @@
 ChartMate/
 │
-├── ChartMate.exe               # Standalone lightweight Windows Native Executable (Tauri v2 + Rust, ~23 MB)
+├── ChartMate.exe               # Standalone lightweight Windows Native Executable (Tauri v2 + Rust, ~27 MB)
 │
 ├── tauri-app/                  # Modern Native Desktop Core Architecture
 │   ├── package.json            # Frontend tools: Vite, TypeScript, Plotly.js, PapaParse, SheetJS
 │   ├── index.html              # Clean desktop window entrypoint
 │   ├── src/                    # Reactive Frontend Architecture
-│   │   ├── main.ts             # ChartMate desktop controller (state, multi-axis, presets, Plotly engine)
+│   │   ├── main.ts             # 4-Tab Controller: Data/Parquet/MySQL, Single Canvas, MultiPlot Grid, Maps GIS & Clustering
 │   │   └── style.css           # ChartMate Clean Scientific Design System (Outfit, JetBrains Mono, Emerald)
 │   │
 │   └── src-tauri/              # Ultra-fast Rust Native Backend
-│       ├── Cargo.toml          # Rust dependencies (tauri v2, calamine for Excel, csv, dialog, fs)
+│       ├── Cargo.toml          # Rust dependencies (tauri v2, parquet, mysql, calamine, csv, dialog, fs)
 │       ├── tauri.conf.json     # Window, capabilities, HiDPI scaling & filesystem permissions
 │       ├── capabilities/       # Granular OS permissions (open dialog, direct local/SharePoint file read)
 │       └── src/
 │           ├── main.rs         # Native desktop bootstrap
-│           └── lib.rs          # Native high-speed dataset reader (CSV, TSV, Excel) & delimiter detector
+│           └── lib.rs          # High-speed reader (Parquet, MySQL, CSV, TSV, Excel) & projects.json persistence
 │
-├── sample_building_data.csv    # Sample engineering & IEQ sensor dataset for instant testing
-├── projects.json               # Standalone JSON database for projects and saved canvas configurations
+├── sample_building_data.csv    # Sample engineering, IEQ & GPS coordinates dataset for instant testing
+├── projects.json               # Standalone JSON database for projects, canvases, multiplots & GIS maps
 │
 ├── legacy-python-dash/         # (Git Branch) Complete original Python/Dash codebase preserved 100%
 │   ├── app.py                  # Original Dash multi-page server

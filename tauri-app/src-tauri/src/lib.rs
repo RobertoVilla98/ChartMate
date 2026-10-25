@@ -21,6 +21,75 @@ pub struct ParseOptions {
     pub max_rows: Option<usize>,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct SqlConnectionConfig {
+    pub host: String,
+    pub port: u16,
+    pub database: String,
+    pub user: String,
+    pub password: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SqlConnectionStatus {
+    pub connected: bool,
+    pub latency_ms: u128,
+    pub tables: Vec<String>,
+    pub message: String,
+}
+
+fn civil_from_days(z: i64) -> (i64, u32, u32) {
+    let z = z + 719468;
+    let era = if z >= 0 { z } else { z - 146096 } / 146097;
+    let doe = (z - era * 146097) as u32;
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    let y = (yoe as i64) + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let year = if m <= 2 { y + 1 } else { y };
+    (year, m, d)
+}
+
+fn epoch_secs_to_iso(secs: i64) -> String {
+    let days = secs.div_euclid(86400);
+    let rem = secs.rem_euclid(86400);
+    let h = rem / 3600;
+    let m = (rem % 3600) / 60;
+    let s = rem % 60;
+    let (year, month, day) = civil_from_days(days);
+    format!("{:04}-{:02}-{:02} {:02}:{:02}:{:02}", year, month, day, h, m, s)
+}
+
+fn format_parquet_field(field: &parquet::record::Field) -> String {
+    use parquet::record::Field;
+    match field {
+        Field::Null => String::new(),
+        Field::Bool(b) => b.to_string(),
+        Field::Byte(b) => b.to_string(),
+        Field::Short(s) => s.to_string(),
+        Field::Int(i) => i.to_string(),
+        Field::Long(l) => l.to_string(),
+        Field::UByte(b) => b.to_string(),
+        Field::UShort(s) => s.to_string(),
+        Field::UInt(i) => i.to_string(),
+        Field::ULong(l) => l.to_string(),
+        Field::Float(f) => f.to_string(),
+        Field::Double(d) => d.to_string(),
+        Field::Str(s) => s.clone(),
+        Field::Bytes(b) => String::from_utf8_lossy(b.data()).to_string(),
+        Field::Date(days) => {
+            let (y, m, d) = civil_from_days(*days as i64);
+            format!("{:04}-{:02}-{:02}", y, m, d)
+        }
+        Field::TimestampMillis(ms) => epoch_secs_to_iso((*ms as i64).div_euclid(1000)),
+        Field::TimestampMicros(us) => epoch_secs_to_iso((*us as i64).div_euclid(1_000_000)),
+        _ => field.to_string(),
+    }
+}
+
+
 fn detect_timestamp_metadata(headers: &[String], rows: &[Vec<String>]) -> (Option<String>, Option<String>) {
     // 1. Look for typical column names: timestamp, time, date, datetime, data, ora
     let mut ts_col = None;
@@ -88,8 +157,53 @@ fn read_dataset_sample(file_path: String, options: Option<ParseOptions>) -> Resu
         _ => 500_000,
     };
 
-    // 1. Check if Excel (.xlsx, .xls)
-    if file_path.ends_with(".xlsx") || file_path.ends_with(".xls") {
+    // 1. Check if Apache Parquet (.parquet, .pq)
+    let lower_path = file_path.to_lowercase();
+    if lower_path.ends_with(".parquet") || lower_path.ends_with(".pq") {
+        use parquet::file::reader::{FileReader, SerializedFileReader};
+        let file = File::open(&file_path)
+            .map_err(|e| format!("Impossibile aprire file Parquet: {}", e))?;
+        let reader = SerializedFileReader::new(file)
+            .map_err(|e| format!("Errore decodifica struttura Parquet: {}", e))?;
+
+        let metadata = reader.metadata();
+        let total_rows = metadata.file_metadata().num_rows().max(0) as usize;
+        let schema = metadata.file_metadata().schema_descr();
+        let columns: Vec<String> = schema.columns().iter().map(|c| c.name().to_string()).collect();
+
+        let iter = reader.get_row_iter(None)
+            .map_err(|e| format!("Errore iterazione record Parquet: {}", e))?;
+
+        let mut rows = Vec::new();
+        for record_res in iter {
+            if rows.len() >= limit {
+                break;
+            }
+            if let Ok(row) = record_res {
+                let mut row_vals = vec![String::new(); columns.len()];
+                for (name, field) in row.get_column_iter() {
+                    if let Some(pos) = columns.iter().position(|c| c == name) {
+                        row_vals[pos] = format_parquet_field(field);
+                    }
+                }
+                rows.push(row_vals);
+            }
+        }
+
+        let (ts_col, ts_fmt) = detect_timestamp_metadata(&columns, &rows);
+
+        return Ok(DatasetPreview {
+            columns,
+            rows,
+            total_rows,
+            detected_sep: "Apache Parquet (Columnar)".to_string(),
+            suggested_ts_col: ts_col,
+            suggested_ts_format: ts_fmt,
+        });
+    }
+
+    // 2. Check if Excel (.xlsx, .xls)
+    if lower_path.ends_with(".xlsx") || lower_path.ends_with(".xls") {
         use calamine::{open_workbook_auto, Reader};
         let mut workbook = open_workbook_auto(&file_path)
             .map_err(|e| format!("Impossibile aprire file Excel: {}", e))?;
@@ -241,6 +355,127 @@ fn save_projects_store(data: serde_json::Value) -> Result<(), String> {
     Ok(())
 }
 
+#[tauri::command]
+fn test_sql_connection(config: SqlConnectionConfig) -> Result<SqlConnectionStatus, String> {
+    use mysql::prelude::*;
+    use mysql::{Conn, OptsBuilder};
+    use std::time::Instant;
+
+    let start = Instant::now();
+    let mut builder = OptsBuilder::new()
+        .ip_or_hostname(Some(config.host.trim()))
+        .tcp_port(config.port)
+        .db_name(Some(config.database.trim()))
+        .user(Some(config.user.trim()));
+
+    if let Some(ref pwd) = config.password {
+        if !pwd.is_empty() {
+            builder = builder.pass(Some(pwd));
+        }
+    }
+
+    let mut conn = Conn::new(builder)
+        .map_err(|e| format!("Connessione MySQL fallita: {}", e))?;
+
+    let latency_ms = start.elapsed().as_millis();
+
+    let tables: Vec<String> = conn
+        .query("SHOW TABLES")
+        .unwrap_or_default();
+
+    Ok(SqlConnectionStatus {
+        connected: true,
+        latency_ms,
+        tables: tables.clone(),
+        message: format!("Connesso in {}ms ({} tabelle trovate)", latency_ms, tables.len()),
+    })
+}
+
+#[tauri::command]
+fn execute_sql_query(
+    config: SqlConnectionConfig,
+    query: String,
+    max_rows: Option<usize>,
+) -> Result<DatasetPreview, String> {
+    use mysql::prelude::*;
+    use mysql::{Conn, OptsBuilder, Value};
+
+    let limit = match max_rows {
+        Some(m) if m > 0 => m,
+        _ => 100_000,
+    };
+
+    let mut builder = OptsBuilder::new()
+        .ip_or_hostname(Some(config.host.trim()))
+        .tcp_port(config.port)
+        .db_name(Some(config.database.trim()))
+        .user(Some(config.user.trim()));
+
+    if let Some(ref pwd) = config.password {
+        if !pwd.is_empty() {
+            builder = builder.pass(Some(pwd));
+        }
+    }
+
+    let mut conn = Conn::new(builder)
+        .map_err(|e| format!("Connessione MySQL fallita: {}", e))?;
+
+    let result = conn
+        .query_iter(query.trim())
+        .map_err(|e| format!("Errore esecuzione query SQL: {}", e))?;
+
+    let columns: Vec<String> = result
+        .columns()
+        .as_ref()
+        .iter()
+        .map(|c| c.name_str().to_string())
+        .collect();
+
+    let mut rows = Vec::new();
+    let mut total_rows = 0;
+
+    for row_res in result {
+        let row = row_res.map_err(|e| format!("Errore lettura riga SQL: {}", e))?;
+        total_rows += 1;
+        if rows.len() < limit {
+            let mut row_vals = Vec::with_capacity(columns.len());
+            for i in 0..columns.len() {
+                let val_str = match row.as_ref(i) {
+                    Some(Value::NULL) | None => String::new(),
+                    Some(Value::Bytes(b)) => String::from_utf8_lossy(b).to_string(),
+                    Some(Value::Int(n)) => n.to_string(),
+                    Some(Value::UInt(u)) => u.to_string(),
+                    Some(Value::Float(f)) => f.to_string(),
+                    Some(Value::Double(d)) => d.to_string(),
+                    Some(Value::Date(y, m, d, 0, 0, 0, 0)) => {
+                        format!("{:04}-{:02}-{:02}", y, m, d)
+                    }
+                    Some(Value::Date(y, m, d, h, min, s, _)) => {
+                        format!("{:04}-{:02}-{:02} {:02}:{:02}:{:02}", y, m, d, h, min, s)
+                    }
+                    Some(Value::Time(neg, d, h, m, s, _)) => {
+                        let sign = if *neg { "-" } else { "" };
+                        format!("{}{:02}:{:02}:{:02}", sign, d * 24 + (*h as u32), m, s)
+                    }
+                };
+                row_vals.push(val_str);
+            }
+            rows.push(row_vals);
+        }
+    }
+
+    let (ts_col, ts_fmt) = detect_timestamp_metadata(&columns, &rows);
+
+    Ok(DatasetPreview {
+        columns,
+        rows,
+        total_rows,
+        detected_sep: format!("MySQL ({})", config.database),
+        suggested_ts_col: ts_col,
+        suggested_ts_format: ts_fmt,
+    })
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -259,7 +494,9 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             read_dataset_sample,
             load_projects_store,
-            save_projects_store
+            save_projects_store,
+            test_sql_connection,
+            execute_sql_query
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
