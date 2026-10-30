@@ -87,10 +87,14 @@ Four specialized engineering analysis workspaces in a single studio:
 ```powershell
 cd tauri-app
 npm install
-npm run build
+
+# Test Rust Backend
 cd src-tauri
 cargo test --lib
-cargo build --release
+cd ..
+
+# Build Production Standalone Executable
+npm run build:app
 ```
 The compiled standalone binary is generated at `tauri-app/src-tauri/target/release/app.exe`.
 
