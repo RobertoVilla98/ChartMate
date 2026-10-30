@@ -476,6 +476,361 @@ fn execute_sql_query(
     })
 }
 
+fn days_from_civil(y: i64, m: u32, d: u32) -> i64 {
+    let y = if m <= 2 { y - 1 } else { y };
+    let era = if y >= 0 { y } else { y - 399 } / 400;
+    let yoe = (y - era * 400) as u32;
+    let m_adj = if m > 2 { m - 3 } else { m + 9 };
+    let doy = (153 * m_adj + 2) / 5 + d - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    era * 146097 + (doe as i64) - 719468
+}
+
+pub fn parse_timestamp_to_epoch(ts: &str) -> Option<i64> {
+    let s = ts.trim();
+    if s.is_empty() {
+        return None;
+    }
+    // Split date and time by space or 'T'
+    let norm = s.replace('T', " ");
+    let mut parts = norm.split_whitespace();
+    let date_part = parts.next()?;
+    let time_part = parts.next().unwrap_or("00:00:00");
+
+    let (year, month, day) = if date_part.contains('-') {
+        let dparts: Vec<&str> = date_part.split('-').collect();
+        if dparts.len() != 3 {
+            return None;
+        }
+        let p0 = dparts[0].parse::<i64>().ok()?;
+        let p1 = dparts[1].parse::<u32>().ok()?;
+        let p2 = dparts[2].parse::<u32>().ok()?;
+        if p0 > 1900 {
+            (p0, p1, p2)
+        } else {
+            (p2 as i64, p1, p0 as u32)
+        }
+    } else if date_part.contains('/') {
+        let dparts: Vec<&str> = date_part.split('/').collect();
+        if dparts.len() != 3 {
+            return None;
+        }
+        let p0 = dparts[0].parse::<i64>().ok()?;
+        let p1 = dparts[1].parse::<u32>().ok()?;
+        let p2 = dparts[2].parse::<i64>().ok()?;
+        if p0 > 1900 {
+            (p0, p1, p2 as u32)
+        } else {
+            (p2, p1, p0 as u32)
+        }
+    } else {
+        return None;
+    };
+
+    if !(1..=12).contains(&month) || !(1..=31).contains(&day) {
+        return None;
+    }
+
+    let tparts: Vec<&str> = time_part.split(':').collect();
+    let hour = tparts.first().and_then(|v| v.parse::<i64>().ok()).unwrap_or(0);
+    let minute = tparts.get(1).and_then(|v| v.parse::<i64>().ok()).unwrap_or(0);
+    let second = tparts
+        .get(2)
+        .and_then(|v| v.split('.').next())
+        .and_then(|v| v.parse::<i64>().ok())
+        .unwrap_or(0);
+
+    let days = days_from_civil(year, month, day);
+    Some(days * 86400 + hour * 3600 + minute * 60 + second)
+}
+
+fn aggregate_slice(vals: &mut [f64], method: &str) -> f64 {
+    if vals.is_empty() {
+        return f64::NAN;
+    }
+    match method {
+        "max" => vals.iter().copied().fold(f64::NEG_INFINITY, f64::max),
+        "min" => vals.iter().copied().fold(f64::INFINITY, f64::min),
+        "sum" => vals.iter().sum(),
+        "median" | "p50" => {
+            vals.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+            let mid = vals.len() / 2;
+            if vals.len() % 2 == 0 {
+                (vals[mid - 1] + vals[mid]) / 2.0
+            } else {
+                vals[mid]
+            }
+        }
+        "p5" => {
+            vals.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+            let idx = ((vals.len() as f64 - 1.0) * 0.05).round() as usize;
+            vals[idx.min(vals.len() - 1)]
+        }
+        "p95" => {
+            vals.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+            let idx = ((vals.len() as f64 - 1.0) * 0.95).round() as usize;
+            vals[idx.min(vals.len() - 1)]
+        }
+        _ => vals.iter().sum::<f64>() / (vals.len() as f64), // default: mean
+    }
+}
+
+fn interval_to_seconds(interval: &str) -> i64 {
+    match interval.trim().to_lowercase().as_str() {
+        "1m" | "1min" => 60,
+        "5m" | "5min" => 300,
+        "10m" | "10min" => 600,
+        "15m" | "15min" => 900,
+        "30m" | "30min" => 1800,
+        "1h" | "60m" => 3600,
+        "3h" => 10800,
+        "6h" => 21600,
+        "12h" => 43200,
+        "1d" | "24h" => 86400,
+        "7d" | "1w" => 604800,
+        _ => 3600,
+    }
+}
+
+#[tauri::command]
+fn resample_in_memory(
+    columns: Vec<String>,
+    rows: Vec<Vec<String>>,
+    timestamp_col: String,
+    interval: String,
+    agg_method: String,
+) -> Result<DatasetPreview, String> {
+    let ts_idx = columns
+        .iter()
+        .position(|c| c == &timestamp_col)
+        .unwrap_or(0);
+
+    let step_secs = interval_to_seconds(&interval);
+    let method = agg_method.trim().to_lowercase();
+
+    use std::collections::BTreeMap;
+    // Map bucket_epoch -> (per-column numeric values Vec<f64>, per-column fallback string)
+    let ncols = columns.len();
+    let mut buckets: BTreeMap<i64, (Vec<Vec<f64>>, Vec<String>)> = BTreeMap::new();
+
+    for row in &rows {
+        let Some(ts_str) = row.get(ts_idx) else { continue };
+        let Some(epoch) = parse_timestamp_to_epoch(ts_str) else { continue };
+        let bucket_epoch = epoch.div_euclid(step_secs) * step_secs;
+
+        let entry = buckets
+            .entry(bucket_epoch)
+            .or_insert_with(|| (vec![Vec::new(); ncols], vec![String::new(); ncols]));
+
+        for col_i in 0..ncols {
+            if col_i == ts_idx {
+                continue;
+            }
+            if let Some(cell) = row.get(col_i) {
+                let trimmed = cell.trim().replace(',', ".");
+                if let Ok(num) = trimmed.parse::<f64>() {
+                    if num.is_finite() {
+                        entry.0[col_i].push(num);
+                    }
+                } else if entry.1[col_i].is_empty() && !cell.trim().is_empty() {
+                    entry.1[col_i] = cell.trim().to_string();
+                }
+            }
+        }
+    }
+
+    let mut out_rows = Vec::with_capacity(buckets.len());
+    for (bucket_epoch, (mut num_vecs, str_fallbacks)) in buckets {
+        let mut out_row = vec![String::new(); ncols];
+        out_row[ts_idx] = epoch_secs_to_iso(bucket_epoch);
+        for col_i in 0..ncols {
+            if col_i == ts_idx {
+                continue;
+            }
+            if !num_vecs[col_i].is_empty() {
+                let agg_val = aggregate_slice(&mut num_vecs[col_i], &method);
+                // Format cleanly with up to 4 decimals, stripping trailing zeros
+                let formatted = format!("{:.4}", agg_val);
+                let clean = formatted.trim_end_matches('0').trim_end_matches('.').to_string();
+                out_row[col_i] = if clean.is_empty() || clean == "-0" { "0".to_string() } else { clean };
+            } else {
+                out_row[col_i] = str_fallbacks[col_i].clone();
+            }
+        }
+        out_rows.push(out_row);
+    }
+
+    let total_rows = out_rows.len();
+    Ok(DatasetPreview {
+        columns,
+        rows: out_rows,
+        total_rows,
+        detected_sep: format!("Resampled ({} | {})", interval, method.to_uppercase()),
+        suggested_ts_col: Some(timestamp_col),
+        suggested_ts_format: Some("%Y-%m-%d %H:%M:%S".to_string()),
+    })
+}
+
+#[tauri::command]
+fn resample_timeseries(
+    file_path: String,
+    timestamp_col: String,
+    value_cols: Vec<String>,
+    interval: String,
+    agg_method: String,
+) -> Result<DatasetPreview, String> {
+    let raw = read_dataset_sample(
+        file_path,
+        Some(ParseOptions {
+            separator: None,
+            decimal: None,
+            timestamp_col: Some(timestamp_col.clone()),
+            timestamp_format: None,
+            max_rows: Some(2_000_000),
+        }),
+    )?;
+
+    // If specific value_cols are given and non-empty, keep timestamp_col + value_cols; otherwise keep all columns
+    if value_cols.is_empty() {
+        return resample_in_memory(raw.columns, raw.rows, timestamp_col, interval, agg_method);
+    }
+
+    let mut selected_indices = Vec::new();
+    let mut filtered_cols = Vec::new();
+    for (idx, col) in raw.columns.iter().enumerate() {
+        if col == &timestamp_col || value_cols.iter().any(|vc| vc == col) {
+            selected_indices.push(idx);
+            filtered_cols.push(col.clone());
+        }
+    }
+
+    let filtered_rows: Vec<Vec<String>> = raw
+        .rows
+        .into_iter()
+        .map(|r| selected_indices.iter().map(|&i| r.get(i).cloned().unwrap_or_default()).collect())
+        .collect();
+
+    resample_in_memory(filtered_cols, filtered_rows, timestamp_col, interval, agg_method)
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AshraeCalibrationResult {
+    pub n: usize,
+    pub mean_measured: f64,
+    pub mean_simulated: f64,
+    pub nmbe_pct: f64,
+    pub cv_rmse_pct: f64,
+    pub rmse: f64,
+    pub mae: f64,
+    pub r_squared: f64,
+    pub ashrae_hourly_pass: bool,
+    pub ashrae_monthly_pass: bool,
+}
+
+#[tauri::command]
+fn compute_ashrae_calibration(
+    measured: Vec<f64>,
+    simulated: Vec<f64>,
+) -> Result<AshraeCalibrationResult, String> {
+    let pairs: Vec<(f64, f64)> = measured
+        .into_iter()
+        .zip(simulated.into_iter())
+        .filter(|(m, s)| m.is_finite() && s.is_finite())
+        .collect();
+
+    let n = pairs.len();
+    if n < 2 {
+        return Err("Almeno 2 coppie di dati validi sono richieste per la calibrazione ASHRAE G14".to_string());
+    }
+
+    let nf = n as f64;
+    let mean_m = pairs.iter().map(|(m, _)| *m).sum::<f64>() / nf;
+    let mean_s = pairs.iter().map(|(_, s)| *s).sum::<f64>() / nf;
+
+    let sum_err: f64 = pairs.iter().map(|(m, s)| m - s).sum();
+    let sum_sq_err: f64 = pairs.iter().map(|(m, s)| (m - s).powi(2)).sum();
+    let sum_abs_err: f64 = pairs.iter().map(|(m, s)| (m - s).abs()).sum();
+    let ss_tot: f64 = pairs.iter().map(|(m, _)| (m - mean_m).powi(2)).sum();
+
+    let denom_mean = if mean_m.abs() > 1e-9 { mean_m } else { 1.0 };
+    // ASHRAE Guideline 14 formulas use (n - 1) for NMBE and CV(RMSE)
+    let nmbe_pct = (sum_err / ((nf - 1.0) * denom_mean)) * 100.0;
+    let rmse = (sum_sq_err / (nf - 1.0)).sqrt();
+    let cv_rmse_pct = (rmse / denom_mean.abs()) * 100.0;
+    let mae = sum_abs_err / nf;
+    let r_squared = if ss_tot > 1e-12 {
+        1.0 - (sum_sq_err / ss_tot)
+    } else {
+        1.0
+    };
+
+    let ashrae_hourly_pass = nmbe_pct.abs() <= 10.0 && cv_rmse_pct <= 30.0;
+    let ashrae_monthly_pass = nmbe_pct.abs() <= 5.0 && cv_rmse_pct <= 15.0;
+
+    Ok(AshraeCalibrationResult {
+        n,
+        mean_measured: mean_m,
+        mean_simulated: mean_s,
+        nmbe_pct,
+        cv_rmse_pct,
+        rmse,
+        mae,
+        r_squared,
+        ashrae_hourly_pass,
+        ashrae_monthly_pass,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_civil_roundtrip() {
+        let days = days_from_civil(2026, 9, 15);
+        let (y, m, d) = civil_from_days(days);
+        assert_eq!((y, m, d), (2026, 9, 15));
+    }
+
+    #[test]
+    fn test_timestamp_parsing_and_resampling() {
+        let cols = vec!["timestamp".to_string(), "temp".to_string(), "zone".to_string()];
+        let rows = vec![
+            vec!["2026-09-01 00:10:00".to_string(), "20.0".to_string(), "A".to_string()],
+            vec!["2026-09-01 00:40:00".to_string(), "22.0".to_string(), "A".to_string()],
+            vec!["2026-09-01 01:15:00".to_string(), "24.0".to_string(), "B".to_string()],
+        ];
+        let res = resample_in_memory(
+            cols,
+            rows,
+            "timestamp".to_string(),
+            "1h".to_string(),
+            "mean".to_string(),
+        )
+        .expect("resampling should succeed");
+
+        assert_eq!(res.total_rows, 2);
+        assert_eq!(res.rows[0][0], "2026-09-01 00:00:00");
+        assert_eq!(res.rows[0][1], "21");
+        assert_eq!(res.rows[0][2], "A");
+        assert_eq!(res.rows[1][0], "2026-09-01 01:00:00");
+        assert_eq!(res.rows[1][1], "24");
+    }
+
+    #[test]
+    fn test_ashrae_calibration_metrics() {
+        let measured = vec![20.0, 22.0, 24.0, 26.0, 23.0];
+        let simulated = vec![20.2, 21.8, 23.9, 25.7, 23.1];
+        let cal = compute_ashrae_calibration(measured, simulated).expect("calibration should succeed");
+        assert_eq!(cal.n, 5);
+        assert!(cal.nmbe_pct.abs() < 2.0);
+        assert!(cal.cv_rmse_pct < 5.0);
+        assert!(cal.r_squared > 0.98);
+        assert!(cal.ashrae_hourly_pass);
+        assert!(cal.ashrae_monthly_pass);
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -496,7 +851,10 @@ pub fn run() {
             load_projects_store,
             save_projects_store,
             test_sql_connection,
-            execute_sql_query
+            execute_sql_query,
+            resample_in_memory,
+            resample_timeseries,
+            compute_ashrae_calibration
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

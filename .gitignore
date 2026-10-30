@@ -1,3 +1,4 @@
+# Project Ignores
 _Paper/
 dist/
 docs/
@@ -10,3 +11,9 @@ projects.json
 **/node_modules/
 *.exe
 WebView2Loader.dll
+
+# Agent & AI contextual documentation (local only, excluded from GitHub)
+AGENTS.md
+GEMINI.md
+ChartMate_Structure.txt
+.system_generated/
