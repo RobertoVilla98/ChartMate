@@ -45,3 +45,7 @@
 - [x] **Track 7 — Repository Hygiene & Clean Root**:
   - Excluded internal AI files (`AGENTS.md`, `GEMINI.md`, `ChartMate_Structure.txt`) from Git tracking via `.gitignore` while maintaining them on local disk.
   - Isolated legacy Python files into `legacy-python-dash/` and cleaned up intermediate binaries.
+- [x] **Hotfix — Windows MinGW WebView2Loader.dll Runtime Resolution**:
+  - Added `WebView2Loader.dll` (160 KB) alongside `ChartMate.exe` and `ChartMate-v0.2-windows-x64.exe` to resolve Windows dynamic linking under MinGW.
+  - Created complete portable zip package `ChartMate-v0.2-windows-x64.zip` (~11 MB) containing binary, DLL, and sample dataset.
+  - Verified process startup and active responsive state (`Running: True, Responding: True`).

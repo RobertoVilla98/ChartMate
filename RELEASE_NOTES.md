@@ -62,5 +62,9 @@ Alongside the high-speed **Parquet / MySQL / Excel Data Engine (Tab 1)**, **Sing
 
 | Asset | Platform | Size | Description |
 | :--- | :--- | :--- | :--- |
-| **`ChartMate-v0.2-windows-x64.exe`** | Windows 10/11 (x64) | ~37 MB | Standalone portable executable (zero installation required) |
+| **`ChartMate-v0.2-windows-x64.zip`** | Windows 10/11 (x64) | ~11 MB | Complete portable release package (contains `ChartMate-v0.2-windows-x64.exe`, `WebView2Loader.dll`, and sample data) |
+| **`ChartMate-v0.2-windows-x64.exe`** | Windows 10/11 (x64) | ~36 MB | Standalone Windows x64 binary (requires `WebView2Loader.dll` in the same directory) |
+| **`WebView2Loader.dll`** | Windows 10/11 (x64) | 160 KB | Microsoft WebView2 Loader library (included in the repo and in the `.zip` archive) |
 | **`sample_building_data.csv`** | Cross-platform | 14 days (336h) | Sample IEQ, HVAC, EnergyPlus simulation & GPS dataset |
+
+> 💡 **Nota per l'esecuzione su Windows**: Se scarichi l'eseguibile singolo `.exe`, assicurati che il file `WebView2Loader.dll` sia presente nella stessa cartella dell'eseguibile (già pre-incluso nel repository e nel pacchetto zip `ChartMate-v0.2-windows-x64.zip`).

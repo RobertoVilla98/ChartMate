@@ -71,8 +71,8 @@ Four specialized engineering analysis workspaces in a single studio:
 
 ## 📥 Download & Quick Start
 
-1. Go to the [**Releases**](https://github.com/villain-98/ChartMate/releases) page and download **`ChartMate-v0.2-windows-x64.exe`** (or `ChartMate.exe`).
-2. Double-click the downloaded executable to start ChartMate immediately.
+1. Go to the [**Releases**](https://github.com/villain-98/ChartMate/releases) page and download **`ChartMate-v0.2-windows-x64.zip`** (or `ChartMate-v0.2-windows-x64.exe` + `WebView2Loader.dll`).
+2. Extract the archive (or ensure `WebView2Loader.dll` sits in the same directory as the executable) and double-click `ChartMate-v0.2-windows-x64.exe` to launch ChartMate immediately.
 3. Drag and drop [`sample_building_data.csv`](sample_building_data.csv) (336 hourly records of indoor/outdoor temperatures, EnergyPlus simulated series, relative humidity, $\text{CO}_2$, HVAC power, and GPS coordinates) to test all 6 tabs immediately.
 
 ---

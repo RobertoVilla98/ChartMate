@@ -10,7 +10,7 @@ projects.json
 **/target/
 **/node_modules/
 *.exe
-WebView2Loader.dll
+*.zip
 
 # Agent & AI contextual documentation (local only, excluded from GitHub)
 AGENTS.md
