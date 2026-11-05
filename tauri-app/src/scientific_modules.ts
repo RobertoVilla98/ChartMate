@@ -1,4 +1,4 @@
-import type { GridFrameConfig } from './main';
+import type { GridFrameConfig } from './core/types';
 
 export interface CarpetPlotState {
   variableCol: string;
@@ -33,6 +33,10 @@ export interface ComfortKpiSummary {
   overheatPct: number;
   undercoolHours: number;
   undercoolPct: number;
+  /** Samples whose T_rm falls outside the adaptive model's applicability range (excluded from totalHours). */
+  outOfRangeHours: number;
+  /** How T_rm was obtained: daily running mean, column used as-is, or not computable (no parseable timestamps). */
+  trmSource: 'running_mean' | 'column' | 'no_timestamps';
 }
 
 export interface DurationCurveState {
@@ -79,6 +83,8 @@ export interface CalibrationMetrics {
   rSquared: number;
   hourlyPass: boolean;
   monthlyPass: boolean;
+  /** Number of aggregated periods (hours or months) the metrics were computed on. */
+  periods: number;
 }
 
 export interface EditorialTableVariable {
@@ -319,9 +325,49 @@ export function buildCarpetPlotFigure(
 // ============================================================================
 // TRACK 2: BIOCLIMATIC & ADAPTIVE THERMAL COMFORT (EN 16798-1 / ASHRAE 55)
 // ============================================================================
+/**
+ * Running mean outdoor temperature on DAILY means, per EN 16798-1:2019 (Annex B) and the
+ * exponentially weighted prevailing mean of ASHRAE 55-2023:
+ *
+ *   T_rm(d) = (1 − α) · Θ_ed(d−1) + α · T_rm(d−1)
+ *
+ * where Θ_ed is the daily mean outdoor temperature. T_rm for a day depends only on PREVIOUS days.
+ * The first day is seeded with its own daily mean (warm-up, no prior history available).
+ * Calendar days without data carry T_rm forward unchanged.
+ *
+ * @param dailyMean map 'YYYY-MM-DD' → daily mean outdoor temperature
+ * @returns map 'YYYY-MM-DD' → T_rm for every calendar day from the first to the last date
+ */
+export function computeDailyRunningMean(dailyMean: Map<string, number>, alpha: number): Map<string, number> {
+  const out = new Map<string, number>();
+  const days = [...dailyMean.keys()].sort();
+  if (days.length === 0) return out;
+
+  const DAY_MS = 86_400_000;
+  const toKey = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+  const first = Date.parse(`${days[0]}T00:00:00Z`);
+  const last = Date.parse(`${days[days.length - 1]}T00:00:00Z`);
+
+  let trm = dailyMean.get(days[0])!;
+  out.set(days[0], trm);
+  for (let ms = first + DAY_MS; ms <= last; ms += DAY_MS) {
+    const prevMean = dailyMean.get(toKey(ms - DAY_MS));
+    if (prevMean !== undefined) trm = (1 - alpha) * prevMean + alpha * trm;
+    out.set(toKey(ms), trm);
+  }
+  return out;
+}
+
+/** Applicability range of T_rm for the adaptive models (as in pythermalcomfort / CBE Comfort Tool). */
+export const ADAPTIVE_TRM_RANGE = {
+  en16798: [10, 30] as const,
+  ashrae55: [10, 33.5] as const
+};
+
 export function buildThermalComfortFigure(
   columns: string[],
   rows: string[][],
+  tsCol: string,
   cfg: ThermalComfortState,
   fontFamily: string,
   fontSize: number,
@@ -343,7 +389,9 @@ export function buildThermalComfortFigure(
     overheatHours: 0,
     overheatPct: 0,
     undercoolHours: 0,
-    undercoolPct: 0
+    undercoolPct: 0,
+    outOfRangeHours: 0,
+    trmSource: cfg.computeRunningMean ? 'running_mean' : 'column'
   };
 
   const traces: any[] = [];
@@ -506,7 +554,8 @@ export function buildThermalComfortFigure(
 
   // Adaptive Comfort Mode: EN 16798-1:2019 or ASHRAE 55-2023
   const isEN = cfg.normMode === 'en16798';
-  const xDom = [10, 30];
+  const [trmMin, trmMax] = isEN ? ADAPTIVE_TRM_RANGE.en16798 : ADAPTIVE_TRM_RANGE.ashrae55;
+  const xDom = [trmMin, trmMax];
   const calcNeutral = (trm: number) => (isEN ? 0.33 * trm + 18.8 : 0.31 * trm + 17.8);
 
   // Boundary bands
@@ -610,23 +659,62 @@ export function buildThermalComfortFigure(
   const cat1X: number[] = [], cat1Y: number[] = [];
   const cat2X: number[] = [], cat2Y: number[] = [];
   const outX: number[] = [], outY: number[] = [];
+  const naX: number[] = [], naY: number[] = [];
 
   if (inIdx !== -1 && outIdx !== -1) {
-    let runningTrm: number | null = null;
     const alpha = Math.max(0.1, Math.min(0.95, cfg.alpha || 0.8));
+    const tsIdx = columns.indexOf(tsCol);
+    const num = (v: string | undefined) => parseFloat((v || '').replace(',', '.'));
+
+    // T_rm must be computed on DAILY mean outdoor temperatures, never sample by sample.
+    let trmByDay: Map<string, number> | null = null;
+    if (cfg.computeRunningMean) {
+      const acc = new Map<string, { sum: number; n: number }>();
+      if (tsIdx !== -1) {
+        for (const r of rows) {
+          const parsed = parseDateAndHour(r[tsIdx] || '');
+          const tout = num(r[outIdx]);
+          if (!parsed || !Number.isFinite(tout)) continue;
+          const a = acc.get(parsed.dateStr) ?? { sum: 0, n: 0 };
+          a.sum += tout;
+          a.n++;
+          acc.set(parsed.dateStr, a);
+        }
+      }
+      if (acc.size === 0) {
+        kpi.trmSource = 'no_timestamps';
+      } else {
+        const dailyMean = new Map<string, number>();
+        acc.forEach((a, day) => dailyMean.set(day, a.sum / a.n));
+        trmByDay = computeDailyRunningMean(dailyMean, alpha);
+      }
+    }
 
     for (const r of rows) {
-      const top = parseFloat((r[inIdx] || '').replace(',', '.'));
-      const tout = parseFloat((r[outIdx] || '').replace(',', '.'));
+      if (kpi.trmSource === 'no_timestamps') break;
+      const top = num(r[inIdx]);
+      const tout = num(r[outIdx]);
       if (!Number.isFinite(top) || !Number.isFinite(tout)) continue;
 
-      if (cfg.computeRunningMean) {
-        runningTrm = runningTrm === null ? tout : (1 - alpha) * tout + alpha * runningTrm;
+      let trm: number;
+      if (trmByDay) {
+        const parsed = parseDateAndHour(r[tsIdx] || '');
+        const dayTrm = parsed ? trmByDay.get(parsed.dateStr) : undefined;
+        if (dayTrm === undefined) continue;
+        trm = dayTrm;
       } else {
-        runningTrm = tout;
+        // Column already contains T_rm (or prevailing mean outdoor temperature)
+        trm = tout;
       }
 
-      const trm = runningTrm;
+      // Outside the model's applicability range: plotted separately, excluded from KPIs
+      if (trm < trmMin || trm > trmMax) {
+        kpi.outOfRangeHours++;
+        naX.push(trm);
+        naY.push(top);
+        continue;
+      }
+
       const tNeutral = calcNeutral(trm);
       kpi.totalHours++;
 
@@ -692,6 +780,17 @@ export function buildThermalComfortFigure(
     });
   }
 
+  if (naX.length > 0) {
+    traces.push({
+      type: 'scatter',
+      mode: 'markers',
+      x: naX,
+      y: naY,
+      marker: { color: '#94a3b8', size: 6, symbol: 'x', opacity: 0.7 },
+      name: `Outside model range T_rm ∉ [${trmMin}, ${trmMax}] °C (${naX.length} h)`
+    });
+  }
+
   if (kpi.totalHours > 0) {
     kpi.cat1Pct = (kpi.cat1Hours / kpi.totalHours) * 100;
     kpi.cat2Pct = (kpi.cat2Hours / kpi.totalHours) * 100;
@@ -699,6 +798,12 @@ export function buildThermalComfortFigure(
     kpi.overheatPct = (kpi.overheatHours / kpi.totalHours) * 100;
     kpi.undercoolPct = (kpi.undercoolHours / kpi.totalHours) * 100;
   }
+
+  // Keep the model domain visible, extend only if out-of-range samples exist
+  const xRange = [
+    Math.min(trmMin, ...naX.map(v => Math.floor(v - 1))),
+    Math.max(trmMax, ...naX.map(v => Math.ceil(v + 1)))
+  ];
 
   const layout: any = {
     width: widthPx,
@@ -717,8 +822,13 @@ export function buildThermalComfortFigure(
     },
     legend: { orientation: 'h', x: 0, y: 1.11, font: { size: Math.max(9, fontSize - 1), color: '#000000' } },
     xaxis: {
-      title: { text: 'Outdoor Running Mean Temperature T_rm [°C]', font: { family: fontFamily, size: fontSize, color: '#000000' } },
-      range: [10, 30],
+      title: {
+        text: isEN
+          ? 'Outdoor Running Mean Temperature T_rm [°C]'
+          : 'Prevailing Mean Outdoor Temperature T_pma(out) [°C]',
+        font: { family: fontFamily, size: fontSize, color: '#000000' }
+      },
+      range: xRange,
       showline: true,
       linecolor: '#000000',
       linewidth: 1.4,
@@ -949,6 +1059,50 @@ export function buildDurationCurveFigure(
 // ============================================================================
 // TRACK 5: MODEL CALIBRATION & VALIDATION (ASHRAE GUIDELINE 14 / IPMVP)
 // ============================================================================
+/** Number of model parameters p in the (n − p) denominators of ASHRAE Guideline 14-2014 (p = 1 for calibrated simulation). */
+export const ASHRAE_G14_P = 1;
+
+/**
+ * Aggregates measured/simulated pairs to the time base required by the ASHRAE G14 criteria:
+ * 'hour' → calendar hour (sub-hourly data averaged, hourly data unchanged), 'month' → calendar month.
+ * Period values are arithmetic means (scale-invariant metrics, valid for temperatures and power alike).
+ * Rows whose timestamp cannot be parsed are dropped; if none parses, 'hour' falls back to the raw samples.
+ */
+export function aggregateCalibrationPairs(
+  timestamps: string[],
+  measured: number[],
+  simulated: number[],
+  period: 'hour' | 'month'
+): { measured: number[]; simulated: number[] } {
+  const acc = new Map<string, { m: number; s: number; n: number }>();
+  const len = Math.min(timestamps.length, measured.length, simulated.length);
+  for (let i = 0; i < len; i++) {
+    if (!Number.isFinite(measured[i]) || !Number.isFinite(simulated[i])) continue;
+    const parsed = parseDateAndHour(timestamps[i]);
+    if (!parsed) continue;
+    const key = period === 'month' ? parsed.dateStr.slice(0, 7) : `${parsed.dateStr}_${String(parsed.hour).padStart(2, '0')}`;
+    const a = acc.get(key) ?? { m: 0, s: 0, n: 0 };
+    a.m += measured[i];
+    a.s += simulated[i];
+    a.n++;
+    acc.set(key, a);
+  }
+  if (acc.size === 0) {
+    return period === 'hour' ? { measured: measured.slice(0, len), simulated: simulated.slice(0, len) } : { measured: [], simulated: [] };
+  }
+  const keys = [...acc.keys()].sort();
+  return {
+    measured: keys.map(k => acc.get(k)!.m / acc.get(k)!.n),
+    simulated: keys.map(k => acc.get(k)!.s / acc.get(k)!.n)
+  };
+}
+
+/**
+ * ASHRAE Guideline 14-2014 statistical indices on already-aggregated pairs:
+ *   NMBE     = Σ(y − ŷ) / ((n − p) · ȳ) · 100
+ *   CV(RMSE) = √(Σ(y − ŷ)² / (n − p)) / ȳ · 100
+ * RMSE and MAE are reported with the plain 1/n normalisation.
+ */
 export function computeAshraeMetricsTS(measured: number[], simulated: number[]): CalibrationMetrics {
   const pairs: [number, number][] = [];
   const len = Math.min(measured.length, simulated.length);
@@ -970,7 +1124,8 @@ export function computeAshraeMetricsTS(measured: number[], simulated: number[]):
       mae: 0,
       rSquared: 0,
       hourlyPass: false,
-      monthlyPass: false
+      monthlyPass: false,
+      periods: n
     };
   }
 
@@ -991,9 +1146,10 @@ export function computeAshraeMetricsTS(measured: number[], simulated: number[]):
   }
 
   const denomMean = Math.abs(meanM) > 1e-9 ? meanM : 1.0;
-  const nmbePct = (sumErr / ((n - 1) * denomMean)) * 100.0;
-  const rmse = Math.sqrt(sumSqErr / (n - 1));
-  const cvRmsePct = (rmse / Math.abs(denomMean)) * 100.0;
+  const dof = Math.max(1, n - ASHRAE_G14_P);
+  const nmbePct = (sumErr / (dof * denomMean)) * 100.0;
+  const cvRmsePct = (Math.sqrt(sumSqErr / dof) / Math.abs(denomMean)) * 100.0;
+  const rmse = Math.sqrt(sumSqErr / n);
   const mae = sumAbsErr / n;
   const rSquared = ssTot > 1e-12 ? 1.0 - sumSqErr / ssTot : 1.0;
 
@@ -1010,7 +1166,8 @@ export function computeAshraeMetricsTS(measured: number[], simulated: number[]):
     mae,
     rSquared,
     hourlyPass,
-    monthlyPass
+    monthlyPass,
+    periods: n
   };
 }
 
@@ -1032,6 +1189,7 @@ export function buildCalibrationFigure(
   const mVals: number[] = [];
   const sVals: number[] = [];
   const residuals: number[] = [];
+  const rawTs: string[] = [];
 
   if (mIdx !== -1 && sIdx !== -1) {
     rows.forEach((r, idx) => {
@@ -1039,6 +1197,7 @@ export function buildCalibrationFigure(
       const sv = parseFloat((r[sIdx] || '').replace(',', '.'));
       if (Number.isFinite(mv) && Number.isFinite(sv)) {
         xLabels.push(r[tsIdx] || String(idx + 1));
+        rawTs.push(r[tsIdx] || '');
         mVals.push(mv);
         sVals.push(sv);
         residuals.push(mv - sv);
@@ -1046,7 +1205,16 @@ export function buildCalibrationFigure(
     });
   }
 
-  const metrics = computeAshraeMetricsTS(mVals, sVals);
+  // G14 criteria are defined on hourly resp. monthly values: aggregate before computing the indices
+  const hourlyAgg = aggregateCalibrationPairs(rawTs, mVals, sVals, 'hour');
+  const monthlyAgg = aggregateCalibrationPairs(rawTs, mVals, sVals, 'month');
+  const hourlyMetrics = computeAshraeMetricsTS(hourlyAgg.measured, hourlyAgg.simulated);
+  const monthlyMetrics = computeAshraeMetricsTS(monthlyAgg.measured, monthlyAgg.simulated);
+  const metrics: CalibrationMetrics = {
+    ...(cfg.standard === 'monthly' ? monthlyMetrics : hourlyMetrics),
+    hourlyPass: hourlyMetrics.n >= 2 && hourlyMetrics.hourlyPass,
+    monthlyPass: monthlyMetrics.n >= 2 && monthlyMetrics.monthlyPass
+  };
   const isPass = cfg.standard === 'monthly' ? metrics.monthlyPass : metrics.hourlyPass;
   const tickFmt = tickFmtFromDec(cfg.decimals);
   const traces: any[] = [];
@@ -1054,6 +1222,7 @@ export function buildCalibrationFigure(
 
   if (cfg.showBoxOnChart && metrics.n >= 2) {
     const passText = isPass ? '✓ ASHRAE G14 PASS' : '⚠ OUT OF TOLERANCE';
+    const periodText = `${metrics.periods} ${cfg.standard === 'monthly' ? 'months' : 'hours'}`;
     annotations.push({
       xref: 'paper',
       yref: 'paper',
@@ -1065,7 +1234,8 @@ export function buildCalibrationFigure(
       text: `<b>${passText} (${cfg.standard.toUpperCase()})</b><br>` +
             `NMBE: ${metrics.nmbePct >= 0 ? '+' : ''}${metrics.nmbePct.toFixed(2)}%<br>` +
             `CV(RMSE): ${metrics.cvRmsePct.toFixed(2)}%<br>` +
-            `R²: ${metrics.rSquared.toFixed(4)} | RMSE: ${metrics.rmse.toFixed(2)}`,
+            `R²: ${metrics.rSquared.toFixed(4)} | RMSE: ${metrics.rmse.toFixed(2)}<br>` +
+            `n = ${periodText}`,
       showarrow: false,
       font: { family: 'JetBrains Mono, monospace', size: Math.max(9, fontSize - 1), color: '#000000' },
       bgcolor: 'rgba(255, 255, 255, 0.94)',

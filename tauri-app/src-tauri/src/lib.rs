@@ -1,3 +1,4 @@
+use tauri::Manager;
 use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::Read;
@@ -304,7 +305,13 @@ fn read_dataset_sample(file_path: String, options: Option<ParseOptions>) -> Resu
     })
 }
 
-fn get_projects_file_path() -> std::path::PathBuf {
+/// Resolves where `projects.json` lives.
+///
+/// 1. Portable mode: a `projects.json` (or the portable `ChartMate.exe`) next to the executable.
+/// 2. Development: an existing `projects.json` in the working directory or its parent.
+/// 3. Installed app (macOS `.app`, Linux AppImage/deb/rpm, Windows installer): the per-user
+///    application data directory, because the executable's folder is read-only there.
+fn get_projects_file_path(app: &tauri::AppHandle) -> std::path::PathBuf {
     if let Ok(exe_path) = std::env::current_exe() {
         if let Some(exe_dir) = exe_path.parent() {
             let p = exe_dir.join("projects.json");
@@ -320,18 +327,23 @@ fn get_projects_file_path() -> std::path::PathBuf {
         }
         if let Some(parent) = cwd.parent() {
             let parent_p = parent.join("projects.json");
-            if parent_p.exists() || parent.join("ChartMate.exe").exists() {
+            if parent_p.exists() {
                 return parent_p;
             }
         }
-        return p;
     }
-    std::path::PathBuf::from("projects.json")
+    match app.path().app_data_dir() {
+        Ok(dir) => {
+            let _ = std::fs::create_dir_all(&dir);
+            dir.join("projects.json")
+        }
+        Err(_) => std::path::PathBuf::from("projects.json"),
+    }
 }
 
 #[tauri::command]
-fn load_projects_store() -> Result<serde_json::Value, String> {
-    let path = get_projects_file_path();
+fn load_projects_store(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
+    let path = get_projects_file_path(&app);
     if !path.exists() {
         return Ok(serde_json::json!({}));
     }
@@ -346,8 +358,8 @@ fn load_projects_store() -> Result<serde_json::Value, String> {
 }
 
 #[tauri::command]
-fn save_projects_store(data: serde_json::Value) -> Result<(), String> {
-    let path = get_projects_file_path();
+fn save_projects_store(app: tauri::AppHandle, data: serde_json::Value) -> Result<(), String> {
+    let path = get_projects_file_path(&app);
     let json_str = serde_json::to_string_pretty(&data)
         .map_err(|e| format!("Errore serializzazione progetti: {}", e))?;
     std::fs::write(&path, json_str)
@@ -753,10 +765,13 @@ fn compute_ashrae_calibration(
     let ss_tot: f64 = pairs.iter().map(|(m, _)| (m - mean_m).powi(2)).sum();
 
     let denom_mean = if mean_m.abs() > 1e-9 { mean_m } else { 1.0 };
-    // ASHRAE Guideline 14 formulas use (n - 1) for NMBE and CV(RMSE)
-    let nmbe_pct = (sum_err / ((nf - 1.0) * denom_mean)) * 100.0;
-    let rmse = (sum_sq_err / (nf - 1.0)).sqrt();
-    let cv_rmse_pct = (rmse / denom_mean.abs()) * 100.0;
+    // ASHRAE Guideline 14-2014: (n - p) denominators with p = 1 for NMBE and CV(RMSE).
+    // Inputs must already be aggregated to the criterion's time base (hourly / monthly).
+    const ASHRAE_G14_P: f64 = 1.0;
+    let dof = (nf - ASHRAE_G14_P).max(1.0);
+    let nmbe_pct = (sum_err / (dof * denom_mean)) * 100.0;
+    let cv_rmse_pct = ((sum_sq_err / dof).sqrt() / denom_mean.abs()) * 100.0;
+    let rmse = (sum_sq_err / nf).sqrt();
     let mae = sum_abs_err / nf;
     let r_squared = if ss_tot > 1e-12 {
         1.0 - (sum_sq_err / ss_tot)

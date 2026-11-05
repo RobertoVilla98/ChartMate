@@ -293,15 +293,17 @@ export const I18N: Record<Lang, Record<string, string>> = {
     comfort_norm_ashrae55: 'ASHRAE 55-2023 Adaptive (90% / 80% Accept.)',
     comfort_norm_psychro: 'Psychrometric T–RH Envelope (Winter/Summer + 12 g/kg)',
     comfort_in_temp_label: 'Indoor Operative Temp Column (Top °C)',
-    comfort_out_temp_label: 'Outdoor Running Mean Temp Column (Trm °C)',
+    comfort_out_temp_label: 'Outdoor Temperature Column (°C, or T_rm if not computed)',
     comfort_rh_label: 'Indoor Relative Humidity Column (RH %)',
-    comfort_calc_trm_toggle: 'Compute Exponential Running Mean (α = 0.8) from Outdoor T',
+    comfort_calc_trm_toggle: 'Compute Running Mean T_rm from Daily Mean Outdoor T (α = 0.8)',
     comfort_kpi_total: 'Total Monitored:',
     comfort_kpi_cat1: 'Cat. I / 90% Comfort:',
     comfort_kpi_cat2: 'Cat. II / 80% Comfort:',
     comfort_kpi_cat3: 'Cat. III / 65% Comfort:',
     comfort_kpi_overheat: 'Overheating (> Upper):',
     comfort_kpi_undercool: 'Undercooling (< Lower):',
+    comfort_kpi_out_of_range: 'Outside Model Range (excluded):',
+    comfort_kpi_no_timestamps: 'T_rm needs a parseable timestamp column',
 
     // Track 3: Duration Curves & Exceedance Analyzer
     dur_config_title: 'Load Duration Curve (LDC) & Exposure',
@@ -331,6 +333,9 @@ export const I18N: Record<Lang, Record<string, string>> = {
     cal_crit_monthly: 'ASHRAE G14 Monthly (|NMBE| ≤ 5%, CV(RMSE) ≤ 15%)',
     cal_badge_pass: '✓ CALIBRATED (ASHRAE G14 PASS)',
     cal_badge_fail: '⚠ OUT OF TOLERANCE (ASHRAE G14 FAIL)',
+    cal_badge_insufficient: '⚠ INSUFFICIENT DATA (≥ 2 periods required)',
+    cal_kpi_periods: 'Evaluated on:',
+    cal_unit_months: 'months',
     cal_show_on_chart: 'Render Calibration Box Annotation on Figure',
 
     // Tab 6: Editorial & LaTeX Suite
@@ -648,15 +653,17 @@ export const I18N: Record<Lang, Record<string, string>> = {
     comfort_norm_ashrae55: 'ASHRAE 55-2023 Adattivo (90% / 80% Accett.)',
     comfort_norm_psychro: 'Inviluppo Psicrometrico T–RH (Inverno/Estate + 12 g/kg)',
     comfort_in_temp_label: 'Colonna Temp. Operativa Interna (Top °C)',
-    comfort_out_temp_label: 'Colonna Temp. Esterna Media (Trm °C)',
+    comfort_out_temp_label: 'Colonna Temp. Esterna (°C, o T_rm se non calcolata)',
     comfort_rh_label: 'Colonna Umidità Relativa Interna (RH %)',
-    comfort_calc_trm_toggle: 'Calcola Media Mobile Esponenziale (α = 0.8) da T Esterna',
+    comfort_calc_trm_toggle: 'Calcola Media Mobile T_rm dalle Medie Giornaliere di T Esterna (α = 0.8)',
     comfort_kpi_total: 'Totale Monitorato:',
     comfort_kpi_cat1: 'Cat. I / Comfort 90%:',
     comfort_kpi_cat2: 'Cat. II / Comfort 80%:',
     comfort_kpi_cat3: 'Cat. III / Comfort 65%:',
     comfort_kpi_overheat: 'Surriscaldamento (> Lim. Sup.):',
     comfort_kpi_undercool: 'Sottoraffrescamento (< Lim. Inf.):',
+    comfort_kpi_out_of_range: 'Fuori Campo del Modello (esclusi):',
+    comfort_kpi_no_timestamps: 'T_rm richiede una colonna timestamp leggibile',
 
     // Track 3: Duration Curves & Exceedance Analyzer
     dur_config_title: 'Curva di Durata (LDC) & Esposizione',
@@ -686,6 +693,9 @@ export const I18N: Record<Lang, Record<string, string>> = {
     cal_crit_monthly: 'ASHRAE G14 Mensile (|NMBE| ≤ 5%, CV(RMSE) ≤ 15%)',
     cal_badge_pass: '✓ CALIBRATO (CONFORME ASHRAE G14)',
     cal_badge_fail: '⚠ FUORI TOLLERANZA (NON CONFORME G14)',
+    cal_badge_insufficient: '⚠ DATI INSUFFICIENTI (servono ≥ 2 periodi)',
+    cal_kpi_periods: 'Valutato su:',
+    cal_unit_months: 'mesi',
     cal_show_on_chart: 'Mostra Box Metriche di Calibrazione sul Grafico',
 
     // Tab 6: Editorial & LaTeX Suite

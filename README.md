@@ -1,14 +1,14 @@
 # ChartMate 📊 — Scientific Visualization & Building Physics Studio
 
-[![Version](https://img.shields.io/badge/version-v0.2.0-emerald.svg)](https://github.com/villain-98/ChartMate/releases)
-[![Platform](https://img.shields.io/badge/platform-Windows%20x64%20(Standalone%20Portable)-blue.svg)](https://github.com/villain-98/ChartMate/releases)
+[![Version](https://img.shields.io/badge/version-v0.2.0-emerald.svg)](https://github.com/RobertoVilla98/ChartMate/releases)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-blue.svg)](https://github.com/RobertoVilla98/ChartMate/releases)
 [![Language](https://img.shields.io/badge/interface-Bilingual%20[EN%20%7C%20IT]-green.svg)](#-bilingual-user-interface)
 [![Architecture](https://img.shields.io/badge/stack-Rust%20%7C%20Tauri%20v2%20%7C%20TypeScript%20%7C%20Plotly.js-orange.svg)](#-building-from-source)
-[![License](https://img.shields.io/badge/license-MIT%20%2F%20Academic-lightgrey.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 **ChartMate** is a standalone, ultra-fast desktop visualization and engineering analytics studio designed for researchers, building physicists, and data scientists to produce **journal-quality, publication-ready figures, custom $R \times C$ multi-panel matrices, GIS maps, building physics diagnostics, and LaTeX `booktabs` tables in seconds**.
 
-Built from the ground up with **Rust (Tauri v2), TypeScript, Vite, and Plotly.js**, it runs as a single lightweight native Windows executable (~37 MB) with **zero installation, no Python runtime, and no local server required**.
+Built from the ground up with **Rust (Tauri v2), TypeScript, Vite, and Plotly.js**, it runs as a lightweight native desktop application on **Windows, macOS and Linux** (portable ~37 MB executable on Windows) with **no Python runtime and no local server required**.
 
 ---
 
@@ -45,7 +45,7 @@ Organized into 4 progressive, anti-clutter sidebar sub-tabs:
 
 ### 🗺️ Tab 4 — Maps & Geo-Analytics Studio
 * Direct dataset loading with live GPS coordinate diagnostics (`✓ GPS Coordinates OK`).
-* Configurable decimal precision and radius for spatial markers across 5 basemap providers (CartoDB Positron, CartoDB Dark, OpenStreetMap, Stamen Terrain, Stamen Toner).
+* Configurable decimal precision and radius for spatial markers across 5 basemap providers (CartoDB Positron, CartoDB Dark Matter, OpenStreetMap, ESRI World Imagery, OpenTopoMap).
 * **Spatial Grid Geoclustering**: Cluster coordinates into uniform spatial cells with mathematical aggregation ($\text{Mean } \mu$, $\text{Sum } \Sigma$, $\text{Mode } Mo$, $\text{Max}$, $\text{Min}$, $\text{Count } N$).
 
 ### 🏢 Tab 5 — Building Physics & IEQ Studio
@@ -71,32 +71,52 @@ Four specialized engineering analysis workspaces in a single studio:
 
 ## 📥 Download & Quick Start
 
-1. Go to the [**Releases**](https://github.com/villain-98/ChartMate/releases) page and download **`ChartMate-v0.2-windows-x64.zip`** (or `ChartMate-v0.2-windows-x64.exe` + `WebView2Loader.dll`).
-2. Extract the archive (or ensure `WebView2Loader.dll` sits in the same directory as the executable) and double-click `ChartMate-v0.2-windows-x64.exe` to launch ChartMate immediately.
-3. Drag and drop [`sample_building_data.csv`](sample_building_data.csv) (336 hourly records of indoor/outdoor temperatures, EnergyPlus simulated series, relative humidity, $\text{CO}_2$, HVAC power, and GPS coordinates) to test all 6 tabs immediately.
+Go to the [**Releases**](https://github.com/RobertoVilla98/ChartMate/releases) page and download the package for your platform:
+
+| Platform | Package | Notes |
+|----------|---------|-------|
+| **Windows 10/11 x64** | `.msi` / `-setup.exe` installer, or the portable `ChartMate-v0.2-windows-x64.zip` | The portable MinGW build needs `WebView2Loader.dll` next to the `.exe` (included in the zip). |
+| **macOS 10.15+** (Apple Silicon & Intel) | Universal `.dmg` | Unsigned builds: right-click → *Open* the first time. |
+| **Linux x64** | `.AppImage`, `.deb`, `.rpm` | Requires WebKitGTK 4.1 (preinstalled on most current desktops). |
+
+Then drag and drop [`sample_building_data.csv`](sample_building_data.csv) (336 hourly records of indoor/outdoor temperatures, EnergyPlus simulated series, relative humidity, $	ext{CO}_2$, HVAC power, and GPS coordinates) to test all 6 tabs immediately.
+
+Projects are stored in `projects.json`: next to the executable in portable mode, otherwise in the per-user application data folder (`%APPDATA%`, `~/Library/Application Support`, `~/.local/share`).
 
 ---
 
 ## 💻 Building from Source
 
 ### Prerequisites
-* [Node.js](https://nodejs.org/) (v18 or newer)
-* [Rust](https://rustup.rs/) (v1.77+ with `stable-x86_64-pc-windows-gnu` or `stable-x86_64-pc-windows-msvc`)
+* [Node.js](https://nodejs.org/) v22.6 or newer (the unit tests use Node's native TypeScript support)
+* [Rust](https://rustup.rs/) stable (MSVC or MinGW toolchain on Windows)
+* Platform dependencies from the [Tauri prerequisites guide](https://v2.tauri.app/start/prerequisites/) — on Debian/Ubuntu:
+  ```bash
+  sudo apt-get install libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+  ```
 
-### Development & Production Build
-```powershell
+### Test & Build
+```bash
 cd tauri-app
 npm install
 
-# Test Rust Backend
-cd src-tauri
-cargo test --lib
-cd ..
+npm test                                # scientific unit tests (validated against pythermalcomfort)
+(cd src-tauri && cargo test --lib)      # Rust backend tests
 
-# Build Production Standalone Executable
-npm run build:app
+npm run build:app                       # portable executable only (src-tauri/target/release/)
+npm run build:bundle                    # native installers for the current OS (src-tauri/target/release/bundle/)
 ```
-The compiled standalone binary is generated at `tauri-app/src-tauri/target/release/app.exe`.
+Installers for all three platforms are produced by the [`Release`](.github/workflows/release.yml) GitHub Actions workflow when a `v*` tag is pushed (draft release) or when it is run manually (workflow artifacts). macOS and Linux packages can only be built on those systems or in CI.
+
+### Source layout (`tauri-app/src`)
+| Folder | Content |
+|--------|---------|
+| `core/` | Shared types, application state, MultiPlot panel helpers |
+| `ui/` | HTML rendering of the shell, sidebars, physics & editorial views |
+| `events/` | DOM event listeners, one module per tab/feature |
+| `charts/` | Plotly figure builders (single canvas, MultiPlot, maps, physics) |
+| `data/` | Dataset loading and project persistence |
+| `scientific_modules.ts` | Building physics & editorial engine (pure functions, unit-tested) |
 
 ---
 
@@ -109,4 +129,4 @@ The compiled standalone binary is generated at `tauri-app/src-tauri/target/relea
 ---
 
 ## 📄 License
-This project is released under the **MIT License**.
+This project is released under the **MIT License** — see [LICENSE](LICENSE). Copyright (c) 2026 Roberto Villa.
