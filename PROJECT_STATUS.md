@@ -49,3 +49,18 @@
   - Added `WebView2Loader.dll` (160 KB) alongside `ChartMate.exe` and `ChartMate-v0.2-windows-x64.exe` to resolve Windows dynamic linking under MinGW.
   - Created complete portable zip package `ChartMate-v0.2-windows-x64.zip` (~11 MB) containing binary, DLL, and sample dataset.
   - Verified process startup and active responsive state (`Running: True, Responding: True`).
+
+### Fix — Scientific Correctness of Adaptive Comfort $T_{rm}$ (2026-11-05)
+- [x] **Running mean computed on daily means**: $T_{rm}(d) = (1-\alpha)\,\Theta_{ed}(d-1) + \alpha\,T_{rm}(d-1)$ on daily mean outdoor temperatures (EN 16798-1:2019 Annex B; exponentially weighted prevailing mean for ASHRAE 55-2023). Previously the recurrence was applied sample-by-sample (hourly), shrinking the memory from ~5 days to ~5 hours.
+  - New exported helper `computeDailyRunningMean` in `scientific_modules.ts`; first day seeded with its own mean (warm-up), missing calendar days carried forward.
+  - `buildThermalComfortFigure` now takes the timestamp column; without parseable timestamps it plots nothing and shows a warning KPI chip instead of a misleading result.
+- [x] **Model applicability ranges**: EN 16798-1 $T_{rm} \in [10, 30]\,^\circ$C, ASHRAE 55 $T_{pma(out)} \in [10, 33.5]\,^\circ$C. Samples outside are plotted as grey crosses and excluded from category percentages (new KPI `outOfRangeHours`).
+- [x] Verified: `tsc && vite build` OK; Node check against an independent daily-mean reference on `sample_building_data.csv` (336 h, 14 days) — all points match, KPIs consistent.
+
+### Maintenance — Cleanup, Modular Frontend, G14 Fix & Cross-Platform Packaging (2026-11-05)
+- [x] **Cleanup**: removed Vite template leftovers (`counter.ts`, `src/assets/*`, `public/*.svg`) and unused npm dependencies `xlsx` (vulnerable 0.18.5), `papaparse`, `@types/papaparse` (Excel/CSV parsing is done in Rust); `npm audit` → 0 vulnerabilities. README links point to `RobertoVilla98/ChartMate`; stale Stamen basemap mention replaced by the actual providers.
+- [x] **Modular frontend**: `main.ts` (5,300 lines) split into `core/` (types, state, panels), `ui/` (render modules), `events/` (9 listener modules + index), `charts/` (single canvas, MultiPlot, map, physics, utils), `data/` (loader, persistence). No behavioural change; verified in the browser with mocked Tauri IPC across all 6 tabs and 4 physics modes, zero console errors.
+- [x] **ASHRAE Guideline 14**: indices now computed on data aggregated to the criterion's time base (calendar hours for *Hourly*, calendar months for *Monthly*) with $(n-p)$, $p=1$ denominators; RMSE/MAE use $1/n$. KPI bar shows the number of evaluated periods and an *insufficient data* badge when fewer than 2 periods exist (e.g. monthly criterion on the 14-day sample). Rust command aligned.
+- [x] **Unit tests**: `npm test` (10 tests, `node --test`) covering $T_{rm}$, EN 16798-1 / ASHRAE 55 limits vs. a **pythermalcomfort 4.0.2** reference fixture, applicability ranges and G14 indices. Rust `cargo test --lib`: 3/3.
+- [x] **Cross-platform packaging**: `projects.json` falls back to the per-user app data directory (installed apps on macOS/Linux have read-only executable folders); bundle metadata in `tauri.conf.json`; `npm run build:bundle`; GitHub Actions `ci.yml` (tests on Windows/macOS/Linux) and `release.yml` (`.msi`/`.exe`, universal `.dmg`, `.AppImage`/`.deb`/`.rpm`). macOS/Linux builds are not yet verified (they run only in CI).
+- [x] **License**: project relicensed consistently under **MIT** (`LICENSE` replaced the previous GPL-3.0 text that contradicted the README); `license = "MIT"` in `Cargo.toml` and `package.json`, README badge and section aligned.

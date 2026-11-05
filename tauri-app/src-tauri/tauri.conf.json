@@ -35,8 +35,22 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "android": {
-      "debugApplicationIdSuffix": ".debug"
+    "publisher": "Roberto Villa",
+    "category": "Education",
+    "shortDescription": "Scientific visualization & building physics studio",
+    "longDescription": "Desktop studio for publication-ready figures, building physics diagnostics (carpet plots, EN 16798-1 / ASHRAE 55 adaptive comfort, duration curves, ASHRAE Guideline 14 calibration) and LaTeX tables.",
+    "homepage": "https://github.com/RobertoVilla98/ChartMate",
+    "copyright": "Copyright (c) 2026 Roberto Villa",
+    "macOS": {
+      "minimumSystemVersion": "10.15"
+    },
+    "linux": {
+      "deb": {
+        "depends": []
+      },
+      "appimage": {
+        "bundleMediaFramework": false
+      }
     }
   }
 }
