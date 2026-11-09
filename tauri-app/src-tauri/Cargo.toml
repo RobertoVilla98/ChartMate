@@ -3,7 +3,7 @@ members = [".", "chartmate-io"]
 
 [package]
 name = "app"
-version = "0.2.0"
+version = "0.3.0"
 description = "ChartMate - scientific visualization and building physics studio"
 authors = ["Roberto Villa"]
 license = "MIT"

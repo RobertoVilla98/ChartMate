@@ -1,4 +1,134 @@
-# 🚀 ChartMate v0.2.0 — Complete 6-Tab Scientific Visualization & Building Physics Studio
+# 🚀 ChartMate v0.3.0 — Scientific File Formats, Columnar Engine & Standalone Executable
+
+> **Release type**: Windows x64 portable release + native installers for Windows, macOS and Linux (built by CI)
+> **Portable binary**: `ChartMate-v0.3-windows-x64.exe` — runs on its own, no extra DLL needed
+> **Stack**: Rust (Tauri v2) + TypeScript + Vite + Plotly.js · **Interface**: English (default) | Italiano
+
+---
+
+## 🌟 Highlights
+
+- **Nine more input formats**: ODS, HDF5, netCDF-3/4, MATLAB (v4/v5/v7 and v7.3), SAS (`.sas7bdat`, transport `.xpt` v5/v8), SPSS (`.sav`) and FITS, next to CSV/TSV, Excel, Parquet and MySQL. All readers are pure Rust: no C libraries, same build on every OS.
+- **A new data engine**: numbers stay typed from the file to the chart, the data travel as a compact binary message, and re-sampling runs in the back end. Reading 10⁶ rows now takes **0.23–0.70 s** (was 2–6 s); loading 10⁶ rows into the interface takes about **0.13 s**.
+- **Large data without freezing**: file reading runs off the interface thread, long series are drawn with min-max decimation (peaks and minima kept), very large point clouds use WebGL, and every statistic is still computed on all values.
+- **Publication output**: vector **PDF export** with standard fonts and exact physical size, composite plates at true **300/600 dpi**, and building-physics figures inside the composite plate.
+- **One-file Windows executable**: the WebView2 loader is embedded, so `ChartMate.exe` no longer needs `WebView2Loader.dll` next to it.
+
+---
+
+## ✨ What's new
+
+### 📂 Data import (Tab 1)
+
+| Format | Extensions | Notes |
+|---|---|---|
+| OpenDocument spreadsheet | `.ods` | first sheet |
+| Excel | `.xlsx` `.xlsm` `.xlsb` `.xls` | dates now imported as ISO date-times |
+| HDF5 | `.h5` `.hdf5` `.he5` `.hdf` | 1-D and 2-D datasets of a common length become columns; compound datasets; CF `units` → timestamps |
+| netCDF-3 / netCDF-4 | `.nc` `.nc4` `.cdf` | CF unpacking and masking; CF time → timestamps |
+| MATLAB | `.mat` (v4/v5/v7, v7.3) | numeric arrays; `datenum` → timestamps |
+| SAS | `.sas7bdat`, `.xpt` (v5, v8) | SAS dates and date-times → ISO |
+| SPSS | `.sav` | uncompressed and bytecode-compressed; long names; user-missing values; SPSS dates → ISO |
+| FITS | `.fits` `.fit` `.fts` | binary and ASCII tables; 1-D / narrow 2-D images; scaling and null values |
+
+- **Row limit** selectable in the data panel (100 k, 500 k, 2 M, 5 M, all rows), with an explicit warning when a file is cut.
+- **Reader notes** in the data panel (skipped variables, unsupported features) and **timings** (load, read + parse, render).
+- **Re-sampling** now runs on the table kept in the back end: no data are sent back from the interface.
+
+### 📈 Charts (Tabs 2–3)
+- Line and area traces longer than 20 000 points are drawn with **min-max decimation** (on by default, can be switched off); scatter traces above 50 000 points use **WebGL**.
+- Charts read typed columns directly: the first chart of a 10⁶-point series appears in about one second.
+
+### 🏢 Building Physics (Tab 5)
+- **Calibration**: new *Quantity* setting. ASHRAE Guideline 14 pass/fail is shown only for energy, power or demand data; for other quantities (e.g. temperature) ChartMate reports NMBE, CV(RMSE), R², RMSE and MAE without a verdict. The setting is pre-filled from the column name.
+- **Duration curves and exposure dose**: the time step Δt is taken from the timestamps by default (manual value still available); irregular sampling is flagged.
+- **Adaptive comfort**: a note in the panel states the conditions of use of EN 16798-1 and ASHRAE 55 (operative temperature, occupant-controlled naturally conditioned spaces, near-sedentary activity).
+- All modules work on typed columns: at 10⁶ rows carpet plot 0.57 s (0.06 s when redrawn), comfort 0.22 s, duration curve 0.47 s, calibration 0.37 s.
+
+### 📑 Editorial & export (Tab 6 and toolbar)
+- **PDF export** (new toolbar button): vector output, text kept as text in the standard PDF fonts (Helvetica, Times, Courier), page size equal to the figure size.
+- **Composite plates**: PNG export now at true 300/600 dpi (previously 192/384 dpi); SVG/PDF sized in millimetres. Plate slots can hold a **carpet plot, adaptive comfort chart, duration curve or calibration parity plot** built with the current Tab-5 settings.
+- **Statistics table** about 10× faster on large datasets (percentiles by selection instead of full sorting); exceedance hours use Δt from the timestamps.
+
+### 💾 Projects
+- A project stores the **size and SHA-256** of its data file; reopening a project whose data file has changed shows a warning.
+
+### 🪟 Windows executable
+- The WebView2 loader is embedded in the executable and copied once to `%LOCALAPPDATA%\ChartMate\runtime\` at first start. `WebView2Loader.dll` is no longer needed next to `ChartMate.exe`.
+
+### 📖 Citation
+- `CITATION.cff` and a **How to Cite** section in the README (APA and BibTeX). GitHub's *Cite this repository* button uses them.
+
+---
+
+## 🛠️ Fixes
+
+- Crash ("Maximum call stack size exceeded") in calibration, carpet plot, maps and adaptive comfort with 10⁵ rows or more.
+- The interface froze while a large file was being read.
+- Every file load made a full copy of the dataset (double memory, seconds of delay at 10⁶ rows).
+- The Editorial view recomputed its statistics on every interface update, whatever tab was open.
+- Excel dates were imported as serial numbers.
+
+---
+
+## ⚡ Performance
+
+Read time of the same table (timestamp + 8 columns) at 10⁶ rows, Windows 11, AMD Ryzen 7 5800H (8 cores), 32 GB RAM, warm cache, median of 5 runs. Spreadsheets at 10⁵ rows.
+
+| Format | v0.3.0 | v0.2.0 |
+|---|---|---|
+| CSV | 0.70 s | 1.67 s |
+| Parquet | 0.37 s | 6.15 s |
+| HDF5 | 0.47 s | 2.99 s |
+| netCDF-4 | 0.49 s | 2.93 s |
+| MATLAB v5 / v7.3 | 0.26 / 0.23 s | 2.73 / 2.46 s |
+| SPSS `.sav` | 0.49 s | 2.93 s |
+| SAS XPT | 0.46 s | 2.91 s |
+| FITS | 0.26 s | 2.13 s |
+| XLSX / ODS (10⁵ rows) | 1.28 / 1.11 s | 1.66 / 1.28 s |
+
+The comparison with pandas, polars, pyarrow, h5py, netCDF4, xarray, scipy, pyreadstat and astropy, and the scripts to reproduce it, are in [`bench/`](bench/README.md).
+
+---
+
+## ⚠️ Notes and known limitations
+
+- The Windows portable executable is larger (50 MB, was 36 MB; the zip is 16 MB) because of the new readers.
+- Very large point clouds drawn with WebGL are exported as images inside SVG/PDF files; lines stay vector.
+- Not yet supported: SPSS `.zsav`, MATLAB structs and cell arrays, wide FITS images and N-D variables; building-physics figures in the MultiPlot grid (they can be placed in composite plates).
+- Projects store absolute file paths.
+- macOS builds are unsigned: right-click → *Open* the first time.
+
+---
+
+## 📦 Release assets
+
+| Asset | Platform | Description |
+| :--- | :--- | :--- |
+| **`ChartMate-v0.3-windows-x64.zip`** (16 MB) | Windows 10/11 (x64) | Portable package: `ChartMate-v0.3-windows-x64.exe`, `sample_building_data.csv`, `LICENSE`, `THIRD_PARTY_NOTICES.md` |
+| **`ChartMate-v0.3-windows-x64.exe`** (50 MB) | Windows 10/11 (x64) | Portable executable, runs on its own (requires the Microsoft Edge WebView2 Runtime, preinstalled on Windows 10/11) |
+| `.msi` / `-setup.exe` | Windows 10/11 (x64) | Installers (built by the release workflow) |
+| Universal `.dmg` | macOS 10.15+ | Apple Silicon and Intel (built by the release workflow) |
+| `.AppImage` / `.deb` / `.rpm` | Linux x64 | Requires WebKitGTK 4.1 (built by the release workflow) |
+
+**SHA-256 checksums (portable assets)**
+
+```
+3272b40b0cae723c1556c20d0ca88e1675af1604bbf97beeb022f75c6f7dbc1d  ChartMate-v0.3-windows-x64.exe
+cedb60b4e6b14487b18452be39faa76070fd78e7b9c11b972af68fcf45b76d96  ChartMate-v0.3-windows-x64.zip
+```
+
+---
+
+## ⬆️ Upgrading from v0.2
+
+- Projects (`projects.json`) open unchanged; the data-file fingerprint is added the next time a project is saved.
+- `WebView2Loader.dll` from v0.2 can be deleted.
+
+---
+---
+
+# ⏮️ Previous release — ChartMate v0.2.0
 
 > **Release Type**: Official Standalone Windows x64 Portable Release  
 > **Primary Binary**: [`ChartMate-v0.2-windows-x64.exe`](ChartMate-v0.2-windows-x64.exe) / [`ChartMate.exe`](ChartMate.exe)  

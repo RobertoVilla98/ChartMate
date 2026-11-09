@@ -1,6 +1,6 @@
 # ChartMate 📊 — Scientific Visualization & Building Physics Studio
 
-[![Version](https://img.shields.io/badge/version-v0.2.0-emerald.svg)](https://github.com/RobertoVilla98/ChartMate/releases)
+[![Version](https://img.shields.io/badge/version-v0.3.0-emerald.svg)](https://github.com/RobertoVilla98/ChartMate/releases)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-blue.svg)](https://github.com/RobertoVilla98/ChartMate/releases)
 [![Language](https://img.shields.io/badge/interface-Bilingual%20[EN%20%7C%20IT]-green.svg)](#-bilingual-user-interface)
 [![Architecture](https://img.shields.io/badge/stack-Rust%20%7C%20Tauri%20v2%20%7C%20TypeScript%20%7C%20Plotly.js-orange.svg)](#-building-from-source)
@@ -65,7 +65,7 @@ Four specialized engineering analysis workspaces in a single studio:
    * Switch between *Time-Series + Residual Subplot* and *1:1 Parity Scatter Plot* with $\pm 10\%$ error cone.
 
 ### 📑 Tab 6 — Editorial & LaTeX Publication Suite
-* **Automated Statistical Summary Generator**: Computes $N$, $\text{Mean}$, $\text{Std}$, $\text{Min}$, $P_{25}$, $\text{Median } (P_{50})$, $P_{75}$, $P_{95}$, $\text{Max}$, $\text{IQR}$, exceedance hours, and dose integral across multiple selected columns.
+* **Automated Statistical Summary Generator**: Computes $N$, $\text{Mean}$, $\text{Std}$, $\text{Min}$, $P_{5}$, $\text{Median } (P_{50})$, $P_{95}$, $\text{Max}$, and exceedance hours and % of time above a threshold across multiple selected columns.
 * **1-Click Manuscript Export**: Generates publication-ready **LaTeX (`booktabs`)**, **GitHub Flavored Markdown**, and **Word/Excel TSV** tables.
 * **Journal Figure Plate Compiler**: Compiles multi-panel vector figure plates calibrated to exact journal column widths (**Single Column $85\text{ mm}$**, **1.5 Column $120\text{ mm}$**, **Double Column $170\text{ mm}$**) at **$300\text{ / }600\text{ DPI}$**.
 
@@ -77,7 +77,7 @@ Go to the [**Releases**](https://github.com/RobertoVilla98/ChartMate/releases) p
 
 | Platform | Package | Notes |
 |----------|---------|-------|
-| **Windows 10/11 x64** | `.msi` / `-setup.exe` installer, or the portable `ChartMate-v0.2-windows-x64.zip` | From v0.3 the portable `.exe` runs on its own: the WebView2 loader is embedded (v0.2 still needs `WebView2Loader.dll` next to the `.exe`, included in its zip). |
+| **Windows 10/11 x64** | `.msi` / `-setup.exe` installer, or the portable `ChartMate-v0.3-windows-x64.zip` | The portable `.exe` runs on its own (WebView2 loader embedded); it needs the Microsoft Edge WebView2 Runtime, preinstalled on Windows 10/11. |
 | **macOS 10.15+** (Apple Silicon & Intel) | Universal `.dmg` | Unsigned builds: right-click → *Open* the first time. |
 | **Linux x64** | `.AppImage`, `.deb`, `.rpm` | Requires WebKitGTK 4.1 (preinstalled on most current desktops). |
 
@@ -124,7 +124,7 @@ Installers for all three platforms are produced by the [`Release`](.github/workf
 
 ## 📚 Technical Documentation & Roadmap
 
-* **[`RELEASE_NOTES.md`](RELEASE_NOTES.md)**: Detailed release notes and changelog for v0.2.0.
+* **[`RELEASE_NOTES.md`](RELEASE_NOTES.md)**: Release notes for v0.3.0 (and earlier releases); see also [`CHANGELOG.md`](CHANGELOG.md).
 * **[`ROADMAP_IMPLEMENTATION_PLAN.md`](ROADMAP_IMPLEMENTATION_PLAN.md)**: Architectural and mathematical specifications for all implemented Building Physics, IEQ, Resampling, Calibration, and Editorial tracks.
 * **[`PROJECT_STATUS.md`](PROJECT_STATUS.md)**: Active development log and milestone status.
 
