@@ -1,10 +1,11 @@
 # ChartMate — Project Status & Milestone Log
 
-## 🎯 Current Release Status: **v0.2.0 Complete 6-Tab Scientific & Building Physics Studio**
-- **Executable Targets**: `ChartMate.exe` and `ChartMate-v0.2-windows-x64.exe` (Compiled & Verified).
+## 🎯 Current Release Status: **v0.3.0 — Scientific File Formats, Columnar Engine & Standalone Executable**
+- **Executable Targets**: `ChartMate.exe` and `ChartMate-v0.3-windows-x64.exe` (50 MB, version 0.3.0), portable package `ChartMate-v0.3-windows-x64.zip` (16 MB: exe, sample data, LICENSE, THIRD_PARTY_NOTICES.md). Verified: zip extracted into an empty folder starts without `WebView2Loader.dll`.
 - **Automated Test Suite**:
-  - Rust Backend (`cargo test --lib`): **3/3 unit tests passed** (`test_civil_roundtrip`, `test_timestamp_parsing_and_resampling`, `test_ashrae_calibration_metrics`).
-  - TypeScript & Scientific Modules (`tsc && vite build` + Node E2E verification on `sample_building_data.csv` 336h dataset): **5/5 tracks passed**.
+  - Rust I/O engine (`cargo test -p chartmate-io`): **17/17 passed** (13 formats vs CSV reference, binary IPC round trip, re-sampling statistics).
+  - TypeScript (`npm test`): **23/23 passed** (comfort vs pythermalcomfort, G14, duration/dose, carpet, statistics, decimation, plates, column/row equivalence).
+- **Release documents**: `RELEASE_NOTES.md` (v0.3.0 + v0.2.0), `CHANGELOG.md`, `THIRD_PARTY_NOTICES.md`.
 
 ---
 
