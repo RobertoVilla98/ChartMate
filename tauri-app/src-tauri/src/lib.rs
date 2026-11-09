@@ -1,4 +1,6 @@
 use tauri::Manager;
+
+mod webview2_loader;
 use serde::{Deserialize, Serialize};
 
 // File readers and re-sampling live in the Tauri-free `chartmate-io` crate.
@@ -289,6 +291,7 @@ fn execute_sql_query(
 }
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    webview2_loader::ensure_loaded();
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())

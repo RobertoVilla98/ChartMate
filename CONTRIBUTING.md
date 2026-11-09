@@ -22,7 +22,7 @@ npm run tauri dev          # desktop app with hot reload
 ```
 
 Windows with the MinGW toolchain: prepend `C:\msys64\mingw64\bin` to `PATH` before any `cargo`
-command. Do not run `cargo clean` unless needed (the incremental cache saves minutes).
+command (MinGW `dlltool` is also used by `build.rs` to delay-load the embedded WebView2 loader). Do not run `cargo clean` unless needed (the incremental cache saves minutes).
 
 ## Code layout
 
