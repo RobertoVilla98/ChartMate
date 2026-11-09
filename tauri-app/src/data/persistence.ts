@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { state, t } from '../core/state';
-import type { CanvasConfig, ProjectsStore } from '../core/types';
+import type { CanvasConfig, ProjectConfig, ProjectsStore } from '../core/types';
 import { loadFile } from './loader';
 import { renderApp } from '../ui/render_app';
 
@@ -141,6 +141,53 @@ export async function persistProjectsStore() {
   }
 }
 
+const deepCopy = <T>(v: T): T => JSON.parse(JSON.stringify(v));
+
+/** Writes the analysis settings (row limit, Tab 5, Tab 6) into a project. */
+function storeAnalysisSettings(p: ProjectConfig) {
+  p.row_limit = state.rowLimit;
+  p.physics = {
+    mode: state.physicsMode,
+    carpet: deepCopy(state.carpetState),
+    comfort: deepCopy(state.comfortState),
+    duration: deepCopy(state.durationState),
+    calib: deepCopy(state.calibState)
+  };
+  p.editorial = deepCopy(state.editorialState);
+}
+
+/**
+ * Restores the Tab 5 / Tab 6 settings of a project. Called after the data are loaded, because
+ * loading picks default columns; a saved column name is kept only if the dataset still has it.
+ */
+function restoreAnalysisSettings(p: ProjectConfig) {
+  const cols = new Set(state.dataset?.columns ?? []);
+  const keepCols = <T extends object>(saved: T, current: T): T => {
+    const out: any = { ...current, ...deepCopy(saved) };
+    for (const [k, v] of Object.entries(saved)) {
+      if (/col$/i.test(k) && typeof v === 'string' && v !== '' && cols.size > 0 && !cols.has(v)) {
+        out[k] = (current as any)[k];
+      }
+    }
+    return out;
+  };
+  if (p.physics) {
+    state.physicsMode = p.physics.mode || state.physicsMode;
+    if (p.physics.carpet) state.carpetState = keepCols(p.physics.carpet, state.carpetState);
+    if (p.physics.comfort) state.comfortState = keepCols(p.physics.comfort, state.comfortState);
+    if (p.physics.duration) state.durationState = keepCols(p.physics.duration, state.durationState);
+    if (p.physics.calib) state.calibState = keepCols(p.physics.calib, state.calibState);
+  }
+  if (p.editorial) {
+    const ed = deepCopy(p.editorial);
+    if (cols.size > 0) {
+      ed.variables = (ed.variables || []).filter(v => cols.has(v.column));
+      if (ed.variables.length === 0) ed.variables = state.editorialState.variables;
+    }
+    state.editorialState = { ...state.editorialState, ...ed };
+  }
+}
+
 export async function saveCurrentProject(projectName?: string) {
   let name = (projectName || state.activeProject || '').trim();
   if (!name) {
@@ -206,6 +253,8 @@ export async function saveCurrentProject(projectName?: string) {
     state.projectsStore[name].updated_at = new Date().toISOString();
   }
 
+  storeAnalysisSettings(state.projectsStore[name]);
+
   const currentCanvasName = state.activeCanvas || 'Canvas_1';
   state.projectsStore[name].canvases[currentCanvasName] = serializeCanvasConfig(currentCanvasName);
   state.projectsStore[name].active_canvas = currentCanvasName;
@@ -241,6 +290,7 @@ export async function loadProject(projectName: string) {
   state.hasTimestamp = !!p.has_timestamp;
   state.timestampCol = p.timestamp_col || '';
   state.timestampFormat = p.timestamp_format || '%Y-%m-%d %H:%M:%S';
+  if (typeof p.row_limit === 'number') state.rowLimit = p.row_limit;
 
   const canvasKeys = Object.keys(p.canvases || {});
   const targetCanvasName = p.active_canvas && p.canvases[p.active_canvas]
@@ -265,8 +315,11 @@ export async function loadProject(projectName: string) {
         }
       } catch { /* file missing: loadFile already reported it */ }
     }
+    restoreAnalysisSettings(p);
+    renderApp();
   } else {
     state.filePath = p.file_path || null;
+    restoreAnalysisSettings(p);
     renderApp();
   }
 }

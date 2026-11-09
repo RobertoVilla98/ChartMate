@@ -3,11 +3,22 @@
 ## 🎯 Current Release Status: **v0.3.0 — Scientific File Formats, Columnar Engine & Standalone Executable**
 - **Executable Targets**: `ChartMate.exe` and `ChartMate-v0.3-windows-x64.exe` (50 MB, version 0.3.0), portable package `ChartMate-v0.3-windows-x64.zip` (16 MB: exe, sample data, LICENSE, THIRD_PARTY_NOTICES.md). Verified: zip extracted into an empty folder starts without `WebView2Loader.dll`.
 - **Automated Test Suite**:
-  - Rust I/O engine (`cargo test -p chartmate-io`): **17/17 passed** (13 formats vs CSV reference, binary IPC round trip, re-sampling statistics).
-  - TypeScript (`npm test`): **23/23 passed** (comfort vs pythermalcomfort, G14, duration/dose, carpet, statistics, decimation, plates, column/row equivalence).
+  - Rust I/O engine (`cargo test -p chartmate-io`): **18/18 passed** (13 formats vs CSV reference, binary IPC round trip, re-sampling statistics, row-limit convention).
+  - TypeScript (`npm test`): **29/29 passed** (comfort vs pythermalcomfort, G14, duration/dose, carpet, statistics, decimation, plates, column/row equivalence, re-review defects S-3…S-8).
 - **Release documents**: `RELEASE_NOTES.md` (v0.3.0 + v0.2.0), `CHANGELOG.md`, `THIRD_PARTY_NOTICES.md`.
 
 ---
+
+## 🔧 2026-11-09 — Fixes from the paper re-review (uncommitted)
+- **S-1** Row limit: `None` = default 500 000, `0` = all rows (`effective_limit`); MySQL uses the same rule (was always capped at 100 000).
+- **S-2** Projects save and restore row limit, Tab 5 settings (mode, carpet, comfort, duration, calibration incl. quantity) and Editorial settings; saved column names are kept only if the dataset still has them.
+- **S-3** Figure-plate SVG/PNG height follows the grid (`plateDimensionsMm`), no longer a fixed 0.85 × width.
+- **S-4** SVG and PDF exports set all text (tick labels included) in one standard font matching the user's figure font (`charts/export_fonts.ts`); SVG export goes through the same path.
+- **S-5** PNG export at 300/600 dpi for every figure (toolbar PNG button + dpi selector), not only plates.
+- **S-6** T–RH chart: hidden 19–27 °C / 25–75 % zone removed; samples above 12 g/kg are out of zone (`humidityLimitHours`); title says "reference zones".
+- **S-7** Comfort KPI flags hours in the first 7 days of a computed running mean (`warmupHours`).
+- **S-8** G14 monthly criterion on energy uses monthly sums of hourly means; calibration reports `spanDays` and flags periods shorter than one year (`shortPeriod`).
+- New synthetic sample generator `tools/make_sample_building_data.py`; `sample_building_data.csv` regenerated.
 
 ## ✅ Completed Milestones
 
@@ -87,6 +98,7 @@
 - [ ] Maps tab still uses the lazy text view; in-browser timing at 10⁶ rows for Tab 5 not measured (browser pane hidden during the session) — measure with the e2e protocol.
 
 ### Standalone Windows executable — embedded WebView2 loader (2026-11-10)
-- [x] The MinGW build no longer needs `WebView2Loader.dll` next to the `.exe`. `build.rs` links a delay-import library generated with `dlltool` (`tauri-app/src-tauri/webview2/WebView2Loader.def`), so Windows does not look for the DLL at start-up; `src/webview2_loader.rs` embeds the DLL (160 KB) and, before the first WebView2 call, writes it once to `%LOCALAPPDATA%\ChartMateuntime\<size>\` and loads it. MSVC builds (CI releases) are unchanged: they link the static loader.
+- [x] The MinGW build no longer needs `WebView2Loader.dll` next to the `.exe`. `build.rs` links a delay-import library generated with `dlltool` (`tauri-app/src-tauri/webview2/WebView2Loader.def`), so Windows does not look for the DLL at start-up; `src/webview2_loader.rs` embeds the DLL (160 KB) and, before the first WebView2 call, writes it once to `%LOCALAPPDATA%\ChartMate
+untime\<size>\` and loads it. MSVC builds (CI releases) are unchanged: they link the static loader.
 - [x] Verified: release `ChartMate.exe` copied alone into an empty folder, runtime cache deleted → window opens, WebView2 starts, loader loaded from the runtime folder; second start reuses the cached copy.
 - [x] `WebView2Loader.dll` removed from the repository (kept locally for the old v0.2 portable exe); README "How to Cite" section added (APA + BibTeX, `CITATION.cff`).

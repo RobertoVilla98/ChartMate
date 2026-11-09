@@ -70,7 +70,8 @@ export function attachDataEvents() {
     try {
       const preview = decodeDataset(await invoke<ArrayBuffer>('execute_sql_query', {
         config: state.sqlConfig,
-        query: state.sqlQuery
+        query: state.sqlQuery,
+        maxRows: state.rowLimit // 0 = all rows, same convention as file loading
       }));
       state.dataset = preview;
       state.rawDatasetBackup = preview;

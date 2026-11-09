@@ -200,6 +200,18 @@ export interface ProjectConfig {
   canvases: Record<string, CanvasConfig>;
   multiplots?: Record<string, MultiPlotConfig>;
   maps?: Record<string, MapConfig>;
+  /** Row limit used when loading the data (0 = all rows). */
+  row_limit?: number;
+  /** Building-physics settings (Tab 5), restored after the data are loaded. */
+  physics?: {
+    mode: 'carpet' | 'comfort' | 'duration' | 'calib';
+    carpet: CarpetPlotState;
+    comfort: ThermalComfortState;
+    duration: DurationCurveState;
+    calib: CalibrationState;
+  };
+  /** Editorial settings (Tab 6): table options, variables and plate layout. */
+  editorial?: EditorialSuiteState;
 }
 
 export type ProjectsStore = Record<string, ProjectConfig>;
@@ -224,6 +236,8 @@ export interface AppState {
   decimationInfo: string;
   /** Row limit sent to the reader (default 500 000). */
   rowLimit: number;
+  /** Resolution of PNG exports of single charts, MultiPlot and physics figures. */
+  exportDpi: 300 | 600;
   dataFingerprint: { size: number; sha256: string } | null;
 
   // SQL Connection State

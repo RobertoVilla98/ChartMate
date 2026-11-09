@@ -235,7 +235,8 @@ export async function loadFile(path: string, resetCanvas: boolean = true) {
       decimal: state.decimal,
       timestamp_col: state.timestampCol || undefined,
       timestamp_format: state.timestampFormat || undefined,
-      max_rows: state.rowLimit > 0 ? state.rowLimit : undefined
+      // 0 = all rows (no limit); the back end applies its default only when no value is sent.
+      max_rows: state.rowLimit
     };
 
     const t0 = performance.now();

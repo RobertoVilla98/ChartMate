@@ -239,6 +239,8 @@ export function renderPhysicsKpiBar(): string {
       <span class="physics-kpi-chip" style="border-color: var(--rose);">${t('comfort_kpi_overheat')} <strong style="color: var(--rose);">${k.overheatHours} h (${k.overheatPct.toFixed(1)}%)</strong></span>
       <span class="physics-kpi-chip">${t('comfort_kpi_undercool')} <strong>${k.undercoolHours} h (${k.undercoolPct.toFixed(1)}%)</strong></span>
       ${state.comfortState.normMode !== 'psychro' && k.outOfRangeHours > 0 ? `<span class="physics-kpi-chip">${t('comfort_kpi_out_of_range')} <strong>${k.outOfRangeHours} h</strong></span>` : ''}
+      ${state.comfortState.normMode !== 'psychro' && (k.warmupHours ?? 0) > 0 ? `<span class="physics-kpi-chip" title="${t('comfort_kpi_warmup_tip')}">${t('comfort_kpi_warmup')} <strong>${k.warmupHours} h</strong></span>` : ''}
+      ${state.comfortState.normMode === 'psychro' && (k.humidityLimitHours ?? 0) > 0 ? `<span class="physics-kpi-chip">${t('comfort_kpi_humidity_limit')} <strong>${k.humidityLimitHours} h</strong></span>` : ''}
       ${state.comfortState.normMode !== 'psychro' && k.trmSource === 'no_timestamps' ? `<span class="physics-kpi-chip" style="border-color: var(--rose);"><strong style="color: var(--rose);">${t('comfort_kpi_no_timestamps')}</strong></span>` : ''}
     `;
   }
@@ -267,6 +269,7 @@ export function renderPhysicsKpiBar(): string {
     <span class="physics-kpi-chip">CV(RMSE): <strong>${m.cvRmsePct.toFixed(2)}%</strong></span>
     <span class="physics-kpi-chip">R²: <strong>${m.rSquared.toFixed(4)}</strong></span>
     <span class="physics-kpi-chip">RMSE / MAE: <strong>${m.rmse.toFixed(2)} / ${m.mae.toFixed(2)}</strong></span>
+    ${m.shortPeriod ? `<span class="physics-kpi-chip" style="border-color: var(--rose);"><strong style="color: var(--rose);">${t('cal_short_period').replace('{days}', String(Math.round(m.spanDays ?? 0)))}</strong></span>` : ''}
     `}
   `;
 }
