@@ -21,7 +21,9 @@ Built from the ground up with **Rust (Tauri v2), TypeScript, Vite, and Plotly.js
 ### ⚡ Tab 1 — Data Engine, SQL Telemetry & Rust High-Speed Resampling
 * **Apache Parquet (`.parquet`, `.pq`)**: High-throughput native Rust ingestion of multi-million-row sensor feeds and simulation outputs.
 * **Direct MySQL Telemetry Connector**: Query local or remote SQL databases directly with an integrated query editor (`test_sql_connection`, `execute_sql_query`).
-* **Spreadsheets & Delimited Text**: Drag-and-drop loading for Excel (`.xlsx`, `.xls`), CSV, and TSV files.
+* **Spreadsheets & Delimited Text**: Excel (`.xlsx`, `.xlsm`, `.xlsb`, `.xls`), OpenDocument (`.ods`), CSV and TSV.
+* **Scientific & statistical formats** (pure Rust, no C libraries): HDF5 (`.h5`, `.hdf5`), netCDF-3/4 (`.nc`), MATLAB v4–v7.3 (`.mat`), SAS (`.sas7bdat`, transport `.xpt` v5/v8), SPSS (`.sav`) and FITS tables/images (`.fits`). Array variables sharing a length become columns; CF time units and MATLAB `datenum` become timestamps. Every reader is tested against the same CSV reference (`cargo test -p chartmate-io`).
+* **Large files**: a configurable row limit with an explicit warning when a file is cut, load and render times shown in the interface, and min-max decimation of long line series (extremes kept, vector export stays small). Reader benchmark against pandas, polars, h5py, netCDF4, xarray, pyreadstat, scipy and astropy: see [`bench/README.md`](bench/README.md).
 * **High-Speed Rust Resampling & Denoising Engine**:
   * Aggregate time series in memory across `1m`, `5m`, `15m`, `30m`, `1h`, `6h`, and `1d` intervals.
   * Choose from `mean`, `median`, `max`, `min`, `p5` (drop removal), `p95` (spike removal), or `sum` with 1-click non-destructive restore to raw data.

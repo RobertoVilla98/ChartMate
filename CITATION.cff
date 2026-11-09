@@ -1,0 +1,21 @@
+cff-version: 1.2.0
+message: "If you use ChartMate in your research, please cite it as below."
+title: "ChartMate: publication-ready figures and building-physics indicators from time-series data"
+type: software
+authors:
+  - family-names: Villa
+    given-names: Roberto
+version: 0.3.0
+license: MIT
+repository-code: "https://github.com/RobertoVilla98/ChartMate"
+keywords:
+  - data visualization
+  - time series
+  - scientific file formats
+  - building physics
+  - thermal comfort
+  - publication figures
+# Add the Zenodo concept DOI here after archiving the first release:
+# identifiers:
+#   - type: doi
+#     value: 10.5281/zenodo.XXXXXXX

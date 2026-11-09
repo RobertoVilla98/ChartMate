@@ -37,6 +37,12 @@ export const state: AppState = {
   resampleInterval: '1h',
   resampleAgg: 'mean',
   isResampled: false,
+  loadTiming: null,
+  renderTiming: null,
+  decimateLargeSeries: true,
+  decimationInfo: "",
+  rowLimit: 500_000,
+  dataFingerprint: null,
   sqlConfig: {
     host: 'localhost',
     port: 3306,
@@ -167,6 +173,7 @@ export const state: AppState = {
     compareCol: 'sim_indoor_temp',
     xMode: 'hours',
     dtHours: 1.0,
+    dtMode: 'auto',
     threshold1: 25.0,
     threshold2: 26.0,
     shadeExceedance: true,
@@ -187,6 +194,7 @@ export const state: AppState = {
   calibState: {
     measuredCol: 'indoor_temp',
     simulatedCol: 'sim_indoor_temp',
+    quantity: 'other',
     viewMode: 'series',
     standard: 'hourly',
     showBoxOnChart: true,

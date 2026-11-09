@@ -1,3 +1,4 @@
+import { rowCount } from '../data/table';
 import { updateMapChart } from '../charts/map';
 import { updateMultiPlotChart } from '../charts/multiplot';
 import { updateEditorialSuite, updatePhysicsChart } from '../charts/physics';
@@ -49,6 +50,10 @@ export function renderApp() {
           </svg>
           ${state.currentTab === 'maps' ? t('btn_export_png') : t('btn_export_svg')}
         </button>
+        ${state.currentTab !== 'maps' && state.currentTab !== 'data' ? `
+        <button class="btn btn-primary" id="btn-export-pdf" style="margin-left: 6px;" title="Vector PDF, standard fonts, exact physical size">
+          PDF
+        </button>` : ''}
       </div>
     </header>
 
@@ -125,7 +130,29 @@ export function renderApp() {
                   <span>${t('total_rows')}: <strong>${state.dataset?.total_rows || 0}</strong></span>
                   <span class="cm-badge cm-badge-sky">${state.dataset?.detected_sep || 'Auto'}</span>
                 </div>
+                ${state.dataset?.truncated ? `
+                  <div style="margin-top: 6px; font-size: 0.74rem; padding: 6px 8px; border-left: 3px solid var(--rose); background: rgba(225,29,72,0.06); color: #000000;">
+                    ⚠ ${t('truncation_banner').replace('{shown}', rowCount(state.dataset).toLocaleString()).replace('{total}', state.dataset.total_rows.toLocaleString())}
+                  </div>` : ''}
+                ${(state.dataset?.notes || []).filter(n => !state.dataset?.truncated || !n.includes('limite righe')).map(n => `
+                  <div style="margin-top: 4px; font-size: 0.72rem; color: #000000;">ℹ ${n}</div>`).join('')}
+                ${state.loadTiming ? `
+                  <div style="margin-top: 6px; font-size: 0.72rem; color: #000000; font-family: 'JetBrains Mono', monospace;">
+                    ⏱ ${t('load_time_label')} ${state.loadTiming.totalMs.toFixed(0)} ms (${t('parse_time_label')} ${state.loadTiming.parseMs.toFixed(0)} ms) · ${state.loadTiming.rows.toLocaleString()} ${t('preview_rows')}
+                  </div>` : ''}
               ` : ''}
+              <div class="form-row" style="margin-top: 8px; align-items: flex-end;">
+                <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                  <label class="form-label">${t('row_limit_label')}</label>
+                  <select class="form-select" id="data-row-limit">
+                    ${[100_000, 500_000, 2_000_000, 5_000_000, 0].map(v => `<option value="${v}" ${state.rowLimit === v ? 'selected' : ''}>${v === 0 ? t('row_limit_all') : v.toLocaleString()}</option>`).join('')}
+                  </select>
+                </div>
+              </div>
+              <label style="display: flex; align-items: center; gap: 8px; font-size: 0.76rem; cursor: pointer; margin-top: 6px;">
+                <input type="checkbox" id="data-decimate" ${state.decimateLargeSeries ? 'checked' : ''} />
+                <span>${t('decimate_toggle')}</span>
+              </label>
             ` : `
               <div style="background: #f8fafc; padding: 10px; border-radius: 6px; border: 1px solid var(--border);">
                 <div class="form-row">
@@ -407,6 +434,7 @@ export function renderApp() {
 
           <div class="chart-viewport">
             <div id="plotly-chart" class="plot-wrapper"></div>
+            <div id="render-timing" style="font-size: 0.7rem; color: #000000; font-family: 'JetBrains Mono', monospace; margin-top: 4px; min-height: 1em;"></div>
           </div>
         </main>
       </div>
@@ -729,7 +757,7 @@ export function renderApp() {
 
       <!-- VIEW 6: EDITORIAL & LATEX SUITE (TRACK 6) -->
       <div class="view-panel ${state.currentTab === 'editorial' ? 'active' : ''}" id="view-editorial">
-        ${renderEditorialView()}
+        ${state.currentTab === 'editorial' ? renderEditorialView() : '' /* statistics over all rows: build only when visible */}
       </div>
     </div>
   `;

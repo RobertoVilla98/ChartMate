@@ -17,3 +17,6 @@ AGENTS.md
 GEMINI.md
 ChartMate_Structure.txt
 .system_generated/
+
+# Local dev-server launcher for the Claude desktop app
+.claude/

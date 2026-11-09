@@ -205,3 +205,6 @@ export function calculatePeakAnnotations(
     });
   }
 }
+
+// Large-series helpers live in a DOM-free module so that they can be unit-tested.
+export { DECIMATION_THRESHOLD, WEBGL_THRESHOLD, minMaxDecimationIndices, decimateSeries, decimationTarget } from './decimation';

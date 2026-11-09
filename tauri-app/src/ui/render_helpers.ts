@@ -1,3 +1,4 @@
+import { cellText, rowCount } from '../data/table';
 import { state, t } from '../core/state';
 
 export function renderColumnOptions(selected: string): string {
@@ -112,9 +113,11 @@ export function renderPreviewTable(): string {
   }
 
   const thead = `<tr>${state.dataset.columns.map(c => `<th>${c}</th>`).join('')}</tr>`;
-  const tbody = state.dataset.rows.slice(0, 50).map(row => {
-    return `<tr>${row.map(val => `<td>${val}</td>`).join('')}</tr>`;
-  }).join('');
+  const ds = state.dataset;
+  const nShow = Math.min(50, rowCount(ds));
+  const tbody = Array.from({ length: nShow }, (_, i) =>
+    `<tr>${ds.columns.map((_, j) => `<td>${cellText(ds, i, j)}</td>`).join('')}</tr>`
+  ).join('');
 
   return `<table class="cm-table"><thead>${thead}</thead><tbody>${tbody}</tbody></table>`;
 }

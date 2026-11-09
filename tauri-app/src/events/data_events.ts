@@ -1,3 +1,4 @@
+import { decodeDataset } from '../data/table';
 import { invoke } from '@tauri-apps/api/core';
 import { state } from '../core/state';
 import type { DatasetPreview, SqlConnectionStatus } from '../core/types';
@@ -6,6 +7,14 @@ import { renderApp } from '../ui/render_app';
 
 export function attachDataEvents() {
   // Source Toggle (File vs SQL)
+  document.getElementById('data-row-limit')?.addEventListener('change', (e) => {
+    state.rowLimit = parseInt((e.target as HTMLSelectElement).value, 10) || 0;
+    if (state.filePath) loadFile(state.filePath, false);
+  });
+  document.getElementById('data-decimate')?.addEventListener('change', (e) => {
+    state.decimateLargeSeries = (e.target as HTMLInputElement).checked;
+    renderApp();
+  });
   document.getElementById('btn-src-file')?.addEventListener('click', () => {
     state.sourceType = 'file';
     renderApp();
@@ -59,11 +68,13 @@ export function attachDataEvents() {
 
   document.getElementById('btn-sql-exec')?.addEventListener('click', async () => {
     try {
-      const preview = await invoke<DatasetPreview>('execute_sql_query', {
+      const preview = decodeDataset(await invoke<ArrayBuffer>('execute_sql_query', {
         config: state.sqlConfig,
         query: state.sqlQuery
-      });
+      }));
       state.dataset = preview;
+      state.rawDatasetBackup = preview;
+      state.isResampled = false;
       state.filePath = `mysql://${state.sqlConfig.host}:${state.sqlConfig.port}/${state.sqlConfig.database}`;
       applyDatasetMetadata(preview, true);
       renderApp();
@@ -146,15 +157,23 @@ export function attachResamplingEvents() {
     if (!srcData || srcData.columns.length === 0) return;
     try {
       const tsCol = state.timestampCol || srcData.columns[0];
-      const resampled = await invoke<DatasetPreview>('resample_in_memory', {
-        columns: srcData.columns,
-        rows: srcData.rows,
-        timestampCol: tsCol,
-        interval: state.resampleInterval,
-        aggMethod: state.resampleAgg
-      });
+      // Re-sampling runs on the raw table cached in the back end (no data sent back).
+      const resampled = srcData.id !== undefined
+        ? decodeDataset(await invoke<ArrayBuffer>('resample_loaded', {
+            datasetId: srcData.id,
+            timestampCol: tsCol,
+            interval: state.resampleInterval,
+            aggMethod: state.resampleAgg
+          }))
+        : await invoke<DatasetPreview>('resample_in_memory', {
+            columns: srcData.columns,
+            rows: srcData.rows,
+            timestampCol: tsCol,
+            interval: state.resampleInterval,
+            aggMethod: state.resampleAgg
+          });
       if (!state.rawDatasetBackup) {
-        state.rawDatasetBackup = JSON.parse(JSON.stringify(srcData));
+        state.rawDatasetBackup = srcData;
       }
       state.dataset = resampled;
       state.isResampled = true;
@@ -165,7 +184,7 @@ export function attachResamplingEvents() {
   });
   document.getElementById('btn-resample-reset')?.addEventListener('click', () => {
     if (state.rawDatasetBackup) {
-      state.dataset = JSON.parse(JSON.stringify(state.rawDatasetBackup));
+      state.dataset = state.rawDatasetBackup;
       state.isResampled = false;
       renderApp();
     }

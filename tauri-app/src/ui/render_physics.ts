@@ -1,3 +1,4 @@
+import type { Rows } from '../source';
 import { computeVariableStats, generatePublicationTableCode, fmtDec } from '../scientific_modules';
 import { state, t } from '../core/state';
 import { renderColumnOptions } from './render_helpers';
@@ -96,6 +97,7 @@ export function renderPhysicsSidebarContent(): string {
             ${renderColumnOptions(c.indoorTempCol)}
           </select>
         </div>
+        ${c.normMode !== 'psychro' ? `<div class="cm-note" style="font-size: 0.72rem; line-height: 1.35; margin: -4px 0 10px; padding: 6px 8px; border-left: 3px solid #b45309; background: rgba(180,83,9,0.06); color: #000000;">${t('comfort_conditions_note')}</div>` : ''}
         ${c.normMode === 'psychro' ? `
           <div class="form-group" style="margin-bottom: 0;">
             <label class="form-label">${t('comfort_rh_label')}</label>
@@ -147,7 +149,11 @@ export function renderPhysicsSidebarContent(): string {
           </div>
           <div class="form-group" style="flex: 1;">
             <label class="form-label">${t('dur_dt_label')}</label>
-            <input type="number" step="0.05" min="0.01" class="form-input" id="phys-dur-dt" value="${d.dtHours}" />
+            <select class="form-select" id="phys-dur-dtmode" style="margin-bottom: 4px;">
+              <option value="auto" ${(d.dtMode ?? 'auto') === 'auto' ? 'selected' : ''}>${t('dur_dt_auto')}</option>
+              <option value="manual" ${d.dtMode === 'manual' ? 'selected' : ''}>${t('dur_dt_manual')}</option>
+            </select>
+            ${d.dtMode === 'manual' ? `<input type="number" step="0.05" min="0.01" class="form-input" id="phys-dur-dt" value="${d.dtHours}" />` : ''}
           </div>
         </div>
         <div class="form-row">
@@ -190,6 +196,13 @@ export function renderPhysicsSidebarContent(): string {
         <select class="form-select" id="phys-cal-view">
           <option value="series" ${cal.viewMode === 'series' ? 'selected' : ''}>${t('cal_view_series')}</option>
           <option value="parity" ${cal.viewMode === 'parity' ? 'selected' : ''}>${t('cal_view_parity')}</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">${t('cal_quantity_label')}</label>
+        <select class="form-select" id="phys-cal-qty">
+          <option value="energy" ${(cal.quantity ?? 'energy') === 'energy' ? 'selected' : ''}>${t('cal_qty_energy')}</option>
+          <option value="other" ${cal.quantity === 'other' ? 'selected' : ''}>${t('cal_qty_other')}</option>
         </select>
       </div>
       <div class="form-group">
@@ -236,14 +249,17 @@ export function renderPhysicsKpiBar(): string {
       <span class="physics-kpi-chip">${t('dur_kpi_exc2')} <strong style="color: var(--rose);">${k.exc2Hours.toFixed(1)} h (${k.exc2Pct.toFixed(1)}%)</strong></span>
       <span class="physics-kpi-chip">${t('dur_kpi_integral')} <strong style="color: var(--primary);">${k.exposureIntegral.toFixed(1)} unit·h</strong></span>
       <span class="physics-kpi-chip">${t('dur_kpi_peak')} <strong>${k.peakVal.toFixed(1)} / ${k.p95Val.toFixed(1)} / ${k.medianVal.toFixed(1)}</strong></span>
+      <span class="physics-kpi-chip">Δt <strong>${(k.dtHours ?? 1).toPrecision(3)} h</strong> (${t('dur_dt_src_' + (k.dtSource ?? 'default'))})</span>
+      ${k.irregularSampling ? `<span class="physics-kpi-chip" style="border-color: var(--rose);"><strong style="color: var(--rose);">${t('dur_irregular_warning')}</strong></span>` : ''}
     `;
   }
   const m = state.calibMetrics;
   const isPass = state.calibState.standard === 'monthly' ? m.monthlyPass : m.hourlyPass;
   const insufficient = m.periods < 2;
+  const applicable = m.criteriaApplicable !== false;
   return `
-    <span class="cm-badge ${isPass ? 'cm-badge-emerald' : 'cm-badge-rose'}" style="font-size: 0.78rem; padding: 5px 10px;">
-      ${insufficient ? t('cal_badge_insufficient') : isPass ? t('cal_badge_pass') : t('cal_badge_fail')}
+    <span class="cm-badge ${!applicable ? 'cm-badge-sky' : isPass ? 'cm-badge-emerald' : 'cm-badge-rose'}" style="font-size: 0.78rem; padding: 5px 10px;">
+      ${insufficient ? t('cal_badge_insufficient') : !applicable ? t('cal_badge_indices_only') : isPass ? t('cal_badge_pass') : t('cal_badge_fail')}
     </span>
     <span class="physics-kpi-chip">${t('cal_kpi_periods')} <strong>${m.periods} ${state.calibState.standard === 'monthly' ? t('cal_unit_months') : 'h'}</strong></span>
     ${insufficient ? '' : `
@@ -258,8 +274,8 @@ export function renderPhysicsKpiBar(): string {
 export function renderEditorialView(): string {
   const ed = state.editorialState;
   const cols = state.dataset?.columns || [];
-  const rows = state.dataset?.rows || [];
-  const statRows = computeVariableStats(cols, rows, ed);
+  const rows: Rows = state.dataset ?? [];
+  const statRows = computeVariableStats(cols, rows, ed, state.hasTimestamp ? state.timestampCol : undefined);
   const generatedCode = generatePublicationTableCode(statRows, ed);
 
   return `
@@ -346,7 +362,12 @@ export function renderEditorialView(): string {
           <div class="form-group" style="margin-bottom: 6px;">
             <label class="form-label">Slot (${String.fromCharCode(97 + sIdx)}) Series</label>
             <select class="form-select ed-plate-slot" data-sidx="${sIdx}">
-              ${renderColumnOptions(ed.plateSlots[sIdx] || '')}
+              <optgroup label="${t('ed_slot_group_columns')}">
+                ${renderColumnOptions(ed.plateSlots[sIdx] || '')}
+              </optgroup>
+              <optgroup label="${t('ed_slot_group_physics')}">
+                ${['carpet', 'comfort', 'duration', 'calibration'].map(k => `<option value="physics:${k}" ${ed.plateSlots[sIdx] === 'physics:' + k ? 'selected' : ''}>${t('ed_slot_physics_' + k)}</option>`).join('')}
+              </optgroup>
             </select>
           </div>
         `).join('')}

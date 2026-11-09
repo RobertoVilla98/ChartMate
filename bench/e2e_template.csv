@@ -1,0 +1,6 @@
+format,rows,decimation,rep,load_total_ms,read_parse_ms,render_ms,points_drawn,notes
+csv,10000,on,1,,,,,
+csv,100000,on,1,,,,,
+csv,1000000,on,1,,,,,
+parquet,1000000,on,1,,,,,
+csv,1000000,off,1,,,,,

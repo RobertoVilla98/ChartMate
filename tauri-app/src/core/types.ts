@@ -1,13 +1,37 @@
+import type { ColumnData } from '../data/table';
 import type { Lang } from '../i18n';
 import type { CarpetPlotState, ThermalComfortState, ComfortKpiSummary, DurationCurveState, DurationKpiSummary, CalibrationState, CalibrationMetrics, EditorialSuiteState } from '../scientific_modules';
 
 export interface DatasetPreview {
+  /** Back-end cache id of the raw dataset (re-sampling runs there, without resending the data). */
+  id?: number;
   columns: string[];
+  /** Typed columns (v0.3 binary transfer). When present, `rows` is a lazily built text view. */
+  colData?: ColumnData[];
+  n_rows?: number;
   rows: string[][];
   total_rows: number;
   detected_sep: string;
   suggested_ts_col?: string;
   suggested_ts_format?: string;
+  /** True when the reader stopped at row_limit before the end of the file. */
+  truncated?: boolean;
+  row_limit?: number;
+  /** Reader notes (skipped variables, unsupported features, truncation). */
+  notes?: string[];
+  /** Read + parse time in the Rust back end, ms. */
+  parse_ms?: number;
+}
+
+/** Timing of the last load, shown in the data panel. */
+export interface LoadTiming {
+  parseMs: number;
+  /** invoke() round trip: parse + JSON serialisation + IPC + deserialisation. */
+  totalMs: number;
+  rows: number;
+  /** Last chart render (Plotly.react) time, ms. */
+  renderMs?: number;
+  renderPoints?: number;
 }
 
 export interface ParseOptions {
@@ -150,6 +174,8 @@ export interface ProjectConfig {
   lang?: Lang;
   source_type?: 'file' | 'sql';
   file_path: string;
+  /** Size and SHA-256 of the data file when the project was saved. */
+  data_fingerprint?: { size: number; sha256: string };
   sql_config?: {
     host: string;
     port: number;
@@ -190,6 +216,15 @@ export interface AppState {
   resampleInterval: '1m' | '5m' | '15m' | '30m' | '1h' | '1d';
   resampleAgg: 'mean' | 'median' | 'max' | 'min' | 'p95' | 'p5' | 'sum';
   isResampled: boolean;
+  /** Timing of the last file load and chart render. */
+  loadTiming: LoadTiming | null;
+  renderTiming: { renderMs: number; points: number } | null;
+  /** Min-max decimation of long line traces (on by default). */
+  decimateLargeSeries: boolean;
+  decimationInfo: string;
+  /** Row limit sent to the reader (default 500 000). */
+  rowLimit: number;
+  dataFingerprint: { size: number; sha256: string } | null;
 
   // SQL Connection State
   sqlConfig: SqlConnectionConfig;
