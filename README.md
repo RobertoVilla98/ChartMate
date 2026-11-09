@@ -65,7 +65,7 @@ Four specialized engineering analysis workspaces in a single studio:
    * Switch between *Time-Series + Residual Subplot* and *1:1 Parity Scatter Plot* with $\pm 10\%$ error cone.
 
 ### 📑 Tab 6 — Editorial & LaTeX Publication Suite
-* **Automated Statistical Summary Generator**: Computes $N$, $\text{Mean}$, $\text{Std}$, $\text{Min}$, $P_{25}$, $\text{Median } (P_{50})$, $P_{75}$, $P_{95}$, $\text{Max}$, $\text{IQR}$, exceedance hours, and dose integral across multiple selected columns.
+* **Automated Statistical Summary Generator**: Computes $N$, $\text{Mean}$, $\text{Std}$, $\text{Min}$, $P_{5}$, $\text{Median } (P_{50})$, $P_{95}$, $\text{Max}$, and exceedance hours and % of time above a threshold across multiple selected columns.
 * **1-Click Manuscript Export**: Generates publication-ready **LaTeX (`booktabs`)**, **GitHub Flavored Markdown**, and **Word/Excel TSV** tables.
 * **Journal Figure Plate Compiler**: Compiles multi-panel vector figure plates calibrated to exact journal column widths (**Single Column $85\text{ mm}$**, **1.5 Column $120\text{ mm}$**, **Double Column $170\text{ mm}$**) at **$300\text{ / }600\text{ DPI}$**.
 
