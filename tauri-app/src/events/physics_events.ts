@@ -90,6 +90,14 @@ export function attachPhysicsEvents() {
     state.durationState.xMode = (e.target as HTMLSelectElement).value as any;
     updatePhysicsChart();
   });
+  document.getElementById('phys-dur-dtmode')?.addEventListener('change', (e) => {
+    state.durationState.dtMode = (e.target as HTMLSelectElement).value === 'manual' ? 'manual' : 'auto';
+    renderApp();
+  });
+  document.getElementById('phys-cal-qty')?.addEventListener('change', (e) => {
+    state.calibState.quantity = (e.target as HTMLSelectElement).value === 'other' ? 'other' : 'energy';
+    updatePhysicsChart();
+  });
   document.getElementById('phys-dur-dt')?.addEventListener('input', (e) => {
     state.durationState.dtHours = parseFloat((e.target as HTMLInputElement).value) || 1.0;
     updatePhysicsChart();

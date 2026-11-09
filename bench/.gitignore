@@ -1,0 +1,7 @@
+data/
+results_scratch/
+.venv/
+__pycache__/
+bench_run.log
+results_*/
+*.log

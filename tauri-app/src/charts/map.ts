@@ -3,6 +3,7 @@ import Plotly from 'plotly.js-dist-min';
 import { formatNumberWithDecimals, getTickFormat, parseGeoCoordinate, parseNumericValue } from './chart_utils';
 import { state } from '../core/state';
 import { applyDatasetMetadata } from '../data/loader';
+import { arrMin, arrMax } from '../scientific_modules';
 
 export function computeMathematicalAggregation(
   values: number[],
@@ -37,11 +38,11 @@ export function computeMathematicalAggregation(
     return { val: s, label: `Σ = ${formatNumberWithDecimals(s, decimals)}` };
   }
   if (agg === 'max') {
-    const m = Math.max(...values);
+    const m = arrMax(values);
     return { val: m, label: `Max = ${formatNumberWithDecimals(m, decimals)}` };
   }
   if (agg === 'min') {
-    const m = Math.min(...values);
+    const m = arrMin(values);
     return { val: m, label: `Min = ${formatNumberWithDecimals(m, decimals)}` };
   }
   const mean = values.reduce((a, b) => a + b, 0) / values.length;
@@ -171,10 +172,10 @@ export function updateMapChart() {
     }
   }
 
-  const minLat = lats.length > 0 ? Math.min(...lats) : 45.478;
-  const maxLat = lats.length > 0 ? Math.max(...lats) : 45.482;
-  const minLon = lons.length > 0 ? Math.min(...lons) : 9.225;
-  const maxLon = lons.length > 0 ? Math.max(...lons) : 9.232;
+  const minLat = lats.length > 0 ? arrMin(lats) : 45.478;
+  const maxLat = lats.length > 0 ? arrMax(lats) : 45.482;
+  const minLon = lons.length > 0 ? arrMin(lons) : 9.225;
+  const maxLon = lons.length > 0 ? arrMax(lons) : 9.232;
   const centerLat = (minLat + maxLat) / 2;
   const centerLon = (minLon + maxLon) / 2;
   const maxSpan = Math.max(maxLat - minLat, maxLon - minLon, 0.002);

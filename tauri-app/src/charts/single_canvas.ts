@@ -1,6 +1,7 @@
+import { axisValues, cellText, getColumn, isNumericColumn, numericValues, rowCount } from '../data/table';
 // @ts-ignore
 import Plotly from 'plotly.js-dist-min';
-import { buildAxisStyle, calculatePeakAnnotations, parseNumericValue } from './chart_utils';
+import { buildAxisStyle, calculatePeakAnnotations, decimateSeries, decimationTarget, WEBGL_THRESHOLD } from './chart_utils';
 import { state, t } from '../core/state';
 import { toISODate } from '../data/loader';
 
@@ -23,27 +24,32 @@ export function updateChart() {
   let xVals: any[] = [];
   let traces: any[] = [];
   const annotations: any[] = [];
+  const decimatedTraces: string[] = [];
+  let drawnPoints = 0;
 
   if (state.dataset && state.selectedX) {
-    const xIdx = state.dataset.columns.indexOf(state.selectedX);
-    let activeRows = state.dataset.rows;
+    const ds = state.dataset;
+    // Row selection for the time window, as indices into the typed columns.
+    let sel: number[] | undefined;
     if (state.timeframeMode !== 'all' && state.hasTimestamp && state.selectedX === state.timestampCol && (state.startDate || state.endDate)) {
-      activeRows = state.dataset.rows.filter(r => {
-        const val = toISODate(r[xIdx]);
-        if (!val) return true;
-        if (state.startDate && val < state.startDate) return false;
-        if (state.endDate && val > state.endDate) return false;
-        return true;
-      });
+      const xc = getColumn(ds, state.selectedX);
+      sel = [];
+      const n = rowCount(ds);
+      for (let i = 0; i < n; i++) {
+        const val = toISODate(xc && !isNumericColumn(xc) ? xc[i] : cellText(ds, i, ds.columns.indexOf(state.selectedX)));
+        if (val && state.startDate && val < state.startDate) continue;
+        if (val && state.endDate && val > state.endDate) continue;
+        sel.push(i);
+      }
     }
 
-    xVals = activeRows.map(r => r[xIdx]);
+    xVals = axisValues(ds, state.selectedX, sel);
 
     state.traces.forEach((tr) => {
       const yIdx = state.dataset!.columns.indexOf(tr.column);
       if (yIdx === -1) return;
 
-      const yVals = activeRows.map(r => parseNumericValue(r[yIdx]));
+      const yVals = numericValues(ds, tr.column, sel);
       const decCfg = state.axisScales[tr.axis]?.decimals || 'auto';
       const hoverFmt = decCfg === 'auto' ? '' : `:.${decCfg}f`;
 
@@ -66,9 +72,22 @@ export function updateChart() {
         pMode = undefined;
       }
 
+      // Large series: min-max decimation for lines/areas, WebGL for very large marker clouds.
+      let xs: any[] = xVals;
+      let ys: (number | null)[] = yVals;
+      if (state.decimateLargeSeries && (tr.chartType === 'line' || tr.chartType === 'area')) {
+        const d = decimateSeries(xVals, yVals, decimationTarget(state.widthCm * 37.795 * 2));
+        xs = d.x;
+        ys = d.y;
+        if (d.decimated) decimatedTraces.push(`${tr.column}: ${ys.length.toLocaleString()} / ${yVals.length.toLocaleString()}`);
+      } else if (tr.chartType === 'scatter' && yVals.length > WEBGL_THRESHOLD) {
+        pType = 'scattergl';
+      }
+      drawnPoints += ys.length;
+
       const traceObj: any = {
-        x: xVals,
-        y: yVals,
+        x: xs,
+        y: ys,
         name: tr.column,
         yaxis: tr.axis === 'y1' ? 'y' : tr.axis,
         type: pType,
@@ -204,5 +223,15 @@ export function updateChart() {
     });
   }
 
-  Plotly.newPlot(chartEl, traces, layout, { responsive: true, displayModeBar: false });
+  // Shown in the interface, never drawn into the exported figure.
+  state.decimationInfo = decimatedTraces.length > 0 ? decimatedTraces.join(' · ') : '';
+  const t0 = performance.now();
+  Promise.resolve(Plotly.newPlot(chartEl, traces, layout, { responsive: true, displayModeBar: false })).then(() => {
+    state.renderTiming = { renderMs: performance.now() - t0, points: drawnPoints };
+    const el = document.getElementById('render-timing');
+    if (el) {
+      el.textContent = `${t('render_time_label')} ${state.renderTiming.renderMs.toFixed(0)} ms · ${drawnPoints.toLocaleString()} pts` +
+        (state.decimationInfo ? ` · ${t('decimation_label')} ${state.decimationInfo}` : '');
+    }
+  });
 }

@@ -1,0 +1,7 @@
+tool,tool_version,operator,task,rep,format,rows,seconds,status,workaround_or_notes
+LabPlot,,,T1,1,csv,100000,,,
+Veusz,,,T1,1,csv,100000,,,
+PlotJuggler,,,T1,1,csv,100000,,,
+LibreOffice Calc,,,T1,1,csv,100000,,,
+Python (pandas+matplotlib),,,T1,1,csv,100000,,,
+ChartMate,,,T1,1,csv,100000,,,

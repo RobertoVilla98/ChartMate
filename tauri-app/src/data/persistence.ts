@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import { state } from '../core/state';
+import { state, t } from '../core/state';
 import type { CanvasConfig, ProjectsStore } from '../core/types';
 import { loadFile } from './loader';
 import { renderApp } from '../ui/render_app';
@@ -156,6 +156,7 @@ export async function saveCurrentProject(projectName?: string) {
       name,
       lang: state.lang,
       file_path: state.filePath || '',
+      data_fingerprint: state.dataFingerprint || undefined,
       source_type: state.sourceType,
       sql_config: {
         host: state.sqlConfig.host,
@@ -183,6 +184,7 @@ export async function saveCurrentProject(projectName?: string) {
   } else {
     state.projectsStore[name].lang = state.lang;
     state.projectsStore[name].file_path = state.filePath || '';
+    state.projectsStore[name].data_fingerprint = state.dataFingerprint || undefined;
     state.projectsStore[name].source_type = state.sourceType;
     state.projectsStore[name].sql_config = {
       host: state.sqlConfig.host,
@@ -253,6 +255,16 @@ export async function loadProject(projectName: string) {
 
   if (p.file_path && !p.file_path.startsWith('mysql://')) {
     await loadFile(p.file_path, false);
+    // Reproducibility check: warn if the data file changed since the project was saved.
+    if (p.data_fingerprint) {
+      try {
+        const fp = await invoke<{ size: number; sha256: string }>('file_fingerprint', { filePath: p.file_path });
+        state.dataFingerprint = fp;
+        if (fp.sha256 !== p.data_fingerprint.sha256) {
+          alert(t('fingerprint_mismatch').replace('{path}', p.file_path));
+        }
+      } catch { /* file missing: loadFile already reported it */ }
+    }
   } else {
     state.filePath = p.file_path || null;
     renderApp();

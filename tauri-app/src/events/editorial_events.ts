@@ -15,7 +15,7 @@ export function attachEditorialEvents() {
     state.editorialState.caption = (e.target as HTMLInputElement).value;
     const codeBox = document.getElementById('ed-code-output') as HTMLTextAreaElement | null;
     if (codeBox && state.dataset) {
-      const sr = computeVariableStats(state.dataset.columns, state.dataset.rows, state.editorialState);
+      const sr = computeVariableStats(state.dataset.columns, state.dataset, state.editorialState, state.hasTimestamp ? state.timestampCol : undefined);
       codeBox.value = generatePublicationTableCode(sr, state.editorialState);
     }
   });
@@ -23,7 +23,7 @@ export function attachEditorialEvents() {
     state.editorialState.latexLabel = (e.target as HTMLInputElement).value;
     const codeBox = document.getElementById('ed-code-output') as HTMLTextAreaElement | null;
     if (codeBox && state.dataset) {
-      const sr = computeVariableStats(state.dataset.columns, state.dataset.rows, state.editorialState);
+      const sr = computeVariableStats(state.dataset.columns, state.dataset, state.editorialState, state.hasTimestamp ? state.timestampCol : undefined);
       codeBox.value = generatePublicationTableCode(sr, state.editorialState);
     }
   });
@@ -107,22 +107,26 @@ export function attachEditorialEvents() {
 
   document.getElementById('btn-ed-plate-svg')?.addEventListener('click', () => {
     const mm = state.editorialState.plateWidthPreset === 'single_85mm' ? 85 : (state.editorialState.plateWidthPreset === 'half_120mm' ? 120 : 170);
+    // SVG user units = CSS px at 96 px/in, so the drawing is exactly mm wide when placed at 100 %.
     Plotly.downloadImage('plotly-plate-chart', {
       format: 'svg',
-      width: Math.round(mm * 3.7795 * 1.5),
-      height: Math.round(mm * 0.85 * 3.7795 * 1.5),
+      width: Math.round(mm * 96 / 25.4),
+      height: Math.round(mm * 0.85 * 96 / 25.4),
       filename: `ChartMate_Composite_Plate_${mm}mm`
     });
   });
 
   document.getElementById('btn-ed-plate-png')?.addEventListener('click', () => {
     const mm = state.editorialState.plateWidthPreset === 'single_85mm' ? 85 : (state.editorialState.plateWidthPreset === 'half_120mm' ? 120 : 170);
-    const scaleFactor = state.editorialState.plateDpi === 600 ? 4 : 2;
+    // Layout in CSS pixels at 96 px/in (1 mm = 3.7795 px), rasterised at dpi/96 so that the PNG has
+    // exactly mm/25.4 × dpi pixels: 170 mm at 600 dpi → 4016 px (previously 2× / 4× = 192 / 384 dpi).
+    const pxPerMm = 96 / 25.4;
     Plotly.downloadImage('plotly-plate-chart', {
       format: 'png',
-      width: Math.round(mm * 3.7795 * scaleFactor),
-      height: Math.round(mm * 0.85 * 3.7795 * scaleFactor),
+      width: Math.round(mm * pxPerMm),
+      height: Math.round(mm * 0.85 * pxPerMm),
+      scale: state.editorialState.plateDpi / 96,
       filename: `ChartMate_Composite_Plate_${mm}mm_${state.editorialState.plateDpi}DPI`
-    });
+    } as any);
   });
 }

@@ -42,6 +42,11 @@ jobs:
         run: npm run build
       - name: Scientific unit tests (TypeScript)
         run: npm test
-      - name: Rust unit tests
+      - name: Rust I/O engine tests (readers for all formats, re-sampling)
         working-directory: tauri-app/src-tauri
-        run: cargo test --lib
+        # chartmate-io has no Tauri dependency, so its test binaries run on every OS without a
+        # WebView / Windows app manifest.
+        run: cargo test -p chartmate-io
+      - name: Rust application check
+        working-directory: tauri-app/src-tauri
+        run: cargo check -p app

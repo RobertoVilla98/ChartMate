@@ -1,7 +1,8 @@
+import { cellText, decodeDataset, rowCount } from './table';
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { getPanelLetter } from '../core/panels';
-import { DEFAULT_PALETTE, state } from '../core/state';
+import { DEFAULT_PALETTE, state, t } from '../core/state';
 import type { DatasetPreview, ParseOptions } from '../core/types';
 import { renderApp } from '../ui/render_app';
 
@@ -22,10 +23,11 @@ export function toISODate(str: string): string {
 export function calculateTimeframeDates(mode: string) {
   if (!state.dataset || !state.timestampCol) return;
   const tsIdx = state.dataset.columns.indexOf(state.timestampCol);
-  if (tsIdx === -1 || state.dataset.rows.length === 0) return;
+  if (tsIdx === -1 || rowCount(state.dataset) === 0) return;
 
-  const firstVal = state.dataset.rows[0][tsIdx];
-  const lastVal = state.dataset.rows[state.dataset.rows.length - 1][tsIdx];
+  const n = rowCount(state.dataset);
+  const firstVal = cellText(state.dataset, 0, tsIdx);
+  const lastVal = cellText(state.dataset, n - 1, tsIdx);
 
   const firstDateStr = toISODate(firstVal);
   const lastDateStr = toISODate(lastVal);
@@ -62,7 +64,18 @@ export async function handleFileSelect() {
     const selected = await open({
       multiple: false,
       filters: [
-        { name: 'Supported Datasets', extensions: ['parquet', 'pq', 'csv', 'xlsx', 'xls', 'tsv', 'txt'] },
+        {
+          name: 'Supported Datasets',
+          extensions: [
+            'csv', 'tsv', 'txt', 'dat',                 // delimited text
+            'xlsx', 'xlsm', 'xlsb', 'xls', 'ods',       // spreadsheets (Excel, OpenDocument)
+            'parquet', 'pq',                            // Apache Parquet
+            'h5', 'hdf5', 'he5', 'nc', 'nc4', 'cdf',     // HDF5, netCDF-3/4
+            'mat',                                      // MATLAB v4/v5/v7/v7.3
+            'sas7bdat', 'xpt', 'sav',                   // SAS, SAS transport, SPSS
+            'fits', 'fit', 'fts'                        // FITS tables and 1-D/2-D images
+          ]
+        },
         { name: 'All Files', extensions: ['*'] }
       ]
     });
@@ -174,6 +187,8 @@ export function applyDatasetMetadata(preview: DatasetPreview, resetCanvas: boole
 
     state.calibState.measuredCol = findCol(/(^indoor_temp|^power_kw|measured)/i, 0);
     state.calibState.simulatedCol = findCol(/(sim_indoor_temp|sim_power|simulated|pred)/i, 1);
+    // G14 acceptance criteria apply to energy / demand only.
+    state.calibState.quantity = /(power|energy|kwh|kw|_kw|demand|consum|load|gas|elec)/i.test(state.calibState.measuredCol) ? 'energy' : 'other';
 
     // Populate Editorial Table Variables
     state.editorialState.variables = nonAxisCols
@@ -220,16 +235,36 @@ export async function loadFile(path: string, resetCanvas: boolean = true) {
       decimal: state.decimal,
       timestamp_col: state.timestampCol || undefined,
       timestamp_format: state.timestampFormat || undefined,
-      max_rows: undefined
+      max_rows: state.rowLimit > 0 ? state.rowLimit : undefined
     };
 
-    const preview = await invoke<DatasetPreview>('read_dataset_sample', { filePath: path, options });
+    const t0 = performance.now();
+    // Binary, column-oriented transfer: numbers arrive as f64 arrays (see data/table.ts).
+    const payload = await invoke<ArrayBuffer>('load_dataset', { filePath: path, options });
+    const preview = decodeDataset(payload);
+    state.loadTiming = {
+      parseMs: preview.parse_ms ?? 0,
+      totalMs: performance.now() - t0,
+      rows: rowCount(preview)
+    };
     state.dataset = preview;
-    state.rawDatasetBackup = JSON.parse(JSON.stringify(preview));
+    // SHA-256 of the source, stored with the project; computed off the UI thread.
+    state.dataFingerprint = null;
+    invoke<{ size: number; sha256: string }>('file_fingerprint', { filePath: path })
+      .then(fp => { if (state.filePath === path) state.dataFingerprint = fp; })
+      .catch(() => { /* fingerprint is optional */ });
+    // Datasets are never mutated in place (resampling builds a new one), so a reference is enough;
+    // a deep copy doubled memory and cost seconds on 10^6-row files.
+    state.rawDatasetBackup = preview;
     state.isResampled = false;
     applyDatasetMetadata(preview, resetCanvas);
 
     renderApp();
+    if (preview.truncated) {
+      alert(t('truncation_alert')
+        .replace('{shown}', rowCount(preview).toLocaleString())
+        .replace('{total}', preview.total_rows.toLocaleString()));
+    }
   } catch (err) {
     alert(`Error reading local file: ${err}`);
   }

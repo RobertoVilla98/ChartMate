@@ -1,6 +1,7 @@
+import { axisValues, numericValues } from '../data/table';
 // @ts-ignore
 import Plotly from 'plotly.js-dist-min';
-import { buildAxisStyle, parseNumericValue } from './chart_utils';
+import { buildAxisStyle, decimateSeries, decimationTarget, WEBGL_THRESHOLD } from './chart_utils';
 import { ensurePanelNormalized, getMultiPlotDimensions, getPanelLetter } from '../core/panels';
 import { DEFAULT_PALETTE, state } from '../core/state';
 import type { AxisScaleConfig } from '../core/types';
@@ -45,12 +46,8 @@ export function updateMultiPlotChart() {
   }
 
   let xVals: any[] = [];
-  const activeRows = state.dataset?.rows || [];
-  if (state.dataset && state.selectedX) {
-    const xIdx = state.dataset.columns.indexOf(state.selectedX);
-    if (xIdx !== -1) {
-      xVals = activeRows.map(r => r[xIdx]);
-    }
+  if (state.dataset && state.selectedX && state.dataset.columns.includes(state.selectedX)) {
+    xVals = axisValues(state.dataset, state.selectedX);
   }
   if (xVals.length === 0) {
     xVals = Array.from({ length: 24 }, (_, i) => `2026-09-01 ${String(i).padStart(2, '0')}:00`);
@@ -149,20 +146,27 @@ export function updateMultiPlotChart() {
       pCfg.traces.forEach((tr) => {
         const yIdx = state.dataset!.columns.indexOf(tr.column);
         const yVals = yIdx !== -1
-          ? activeRows.map(r => parseNumericValue(r[yIdx]))
+          ? numericValues(state.dataset!, tr.column)
           : xVals.map((_, k) => 20 + (i + 1) * 2 * Math.sin((k + i * 3) / 3));
 
         const decCfg = pCfg.y1Decimals || 'auto';
         const hoverFmt = decCfg === 'auto' ? '' : `:.${decCfg}f`;
 
+        // Large series: min-max decimation for lines/areas (per panel width), WebGL for big marker clouds.
+        const isLine = tr.chartType === 'line' || tr.chartType === 'area';
+        const dec = state.decimateLargeSeries && isLine
+          ? decimateSeries(xVals, yVals, decimationTarget((state.mpWidthCm * 37.795 * 2) / Math.max(1, cols)))
+          : { x: xVals, y: yVals, decimated: false };
+        const useGl = tr.chartType === 'scatter' && yVals.length > WEBGL_THRESHOLD;
+
         traces.push({
-          x: xVals,
-          y: yVals,
+          x: dec.x,
+          y: dec.y,
           name: state.mpLegendMode === 'per_panel' ? (tr.column || `Series`) : `${letter} ${tr.column || pCfg.yTitle}`,
           xaxis: xRef,
           yaxis: tr.axis === 'y2' ? y2Ref : yRef,
           legend: state.mpLegendMode === 'per_panel' ? legName : 'legend',
-          type: tr.chartType === 'bar' ? 'bar' : 'scatter',
+          type: tr.chartType === 'bar' ? 'bar' : (useGl ? 'scattergl' : 'scatter'),
           mode: tr.chartType === 'scatter' ? 'markers' : (tr.chartType === 'bar' ? undefined : 'lines'),
           fill: tr.chartType === 'area' ? 'tozeroy' : undefined,
           line: { color: tr.color, width: tr.lineWidth || 1.8, dash: tr.lineDash || 'solid' },

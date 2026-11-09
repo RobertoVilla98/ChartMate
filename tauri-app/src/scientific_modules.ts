@@ -1,3 +1,4 @@
+import { dayKey, dowOf, nRowsOf, strideIndices, numGetter, textGetter, timeColumn, timestampMs, type Rows } from './source.ts';
 import type { GridFrameConfig } from './core/types';
 
 export interface CarpetPlotState {
@@ -43,7 +44,10 @@ export interface DurationCurveState {
   variableCol: string;
   compareCol: string;
   xMode: 'hours' | 'pct';
+  /** Hours per record used only when dtMode is 'manual' or the timestamps cannot be parsed. */
   dtHours: number;
+  /** 'auto' (default): Δt is the median spacing of the timestamps. */
+  dtMode?: 'auto' | 'manual';
   threshold1: number | null;
   threshold2: number | null;
   shadeExceedance: boolean;
@@ -61,11 +65,20 @@ export interface DurationKpiSummary {
   p95Val: number;
   medianVal: number;
   meanVal: number;
+  /** Δt actually used (hours per record) and where it came from. */
+  dtHours?: number;
+  dtSource?: 'timestamps' | 'manual' | 'default';
+  irregularSampling?: boolean;
 }
 
 export interface CalibrationState {
   measuredCol: string;
   simulatedCol: string;
+  /**
+   * ASHRAE Guideline 14 NMBE / CV(RMSE) acceptance criteria are defined for energy and demand data.
+   * 'energy' shows the pass/fail verdict; 'other' (e.g. temperature) reports the indices only.
+   */
+  quantity?: 'energy' | 'other';
   viewMode: 'series' | 'parity';
   standard: 'hourly' | 'monthly';
   showBoxOnChart: boolean;
@@ -83,6 +96,8 @@ export interface CalibrationMetrics {
   rSquared: number;
   hourlyPass: boolean;
   monthlyPass: boolean;
+  /** False when the G14 acceptance criteria do not apply (non-energy quantity). */
+  criteriaApplicable?: boolean;
   /** Number of aggregated periods (hours or months) the metrics were computed on. */
   periods: number;
 }
@@ -105,6 +120,21 @@ export interface EditorialSuiteState {
   plateDpi: 300 | 600;
   plateGrid: '2x1' | '1x2' | '2x2' | '3x1';
   plateSlots: string[]; // column names or saved canvas keys
+}
+
+/**
+ * Minimum / maximum of a large array. `arrMin(a)` passes every element as a call argument
+ * and overflows the stack above ~10^5 elements (found when building a 2·10^5-row calibration).
+ */
+export function arrMin(a: number[]): number {
+  let m = Infinity;
+  for (let i = 0; i < a.length; i++) if (a[i] < m) m = a[i];
+  return m;
+}
+export function arrMax(a: number[]): number {
+  let m = -Infinity;
+  for (let i = 0; i < a.length; i++) if (a[i] > m) m = a[i];
+  return m;
 }
 
 export function resolvePlotlyColorscale(name: string): any {
@@ -149,35 +179,65 @@ export function tickFmtFromDec(dec: 'auto' | '0' | '1' | '2' | '3' = 'auto'): st
   return `.${dec}f`;
 }
 
-function parseDateAndHour(rawTs: string): { dateStr: string; hour: number; dow: number } | null {
-  const s = (rawTs || '').trim();
-  if (!s) return null;
-  const norm = s.replace('T', ' ');
-  const parts = norm.split(/\s+/);
-  const datePart = parts[0];
-  const timePart = parts[1] || '00:00:00';
+/**
+ * Parses "YYYY-MM-DD[ T]HH:MM[:SS]", "YYYY/MM/DD ...", "DD/MM/YYYY ..." or "DD-MM-YYYY ..." as UTC
+ * epoch milliseconds. Returns null when the text is not a timestamp.
+ */
+export function parseTimestampMs(raw: string): number | null {
+  const s = (raw || '').trim();
+  const m = s.match(/^(\d{1,4})[-/.](\d{1,2})[-/.](\d{1,4})(?:[ T](\d{1,2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?)?/);
+  if (!m) return null;
+  let y = +m[1], mo = +m[2], d = +m[3];
+  if (m[1].length <= 2 && m[3].length === 4) { y = +m[3]; d = +m[1]; }
+  if (mo < 1 || mo > 12 || d < 1 || d > 31) return null;
+  return Date.UTC(y, mo - 1, d, +(m[4] || 0), +(m[5] || 0), +(m[6] || 0));
+}
 
-  let y = 2026, m = 1, d = 1;
-  if (datePart.includes('-')) {
-    const dp = datePart.split('-').map(Number);
-    if (dp.length !== 3 || dp.some(isNaN)) return null;
-    if (dp[0] > 1900) { [y, m, d] = dp; } else { [d, m, y] = dp; }
-  } else if (datePart.includes('/')) {
-    const dp = datePart.split('/').map(Number);
-    if (dp.length !== 3 || dp.some(isNaN)) return null;
-    if (dp[0] > 1900) { [y, m, d] = dp; } else { [d, m, y] = dp; }
-  } else {
-    return null;
+export interface SamplingStep {
+  /** Median spacing between consecutive records, hours (null if fewer than 2 parseable timestamps). */
+  stepHours: number | null;
+  /** True when spacings differ by more than ±10 % from the median in over 5 % of the records. */
+  irregular: boolean;
+}
+
+/** Infers the sampling step from a timestamp column. */
+const samplingCache = new WeakMap<Float64Array, SamplingStep>();
+
+export function inferSamplingStep(rows: Rows, tsIdx: number): SamplingStep {
+  if (tsIdx < 0) return { stepHours: null, irregular: false };
+  const tc = timeColumn(rows, tsIdx);
+  const hit = samplingCache.get(tc);
+  if (hit) return hit;
+  let k = 0;
+  const t = new Float64Array(tc.length);
+  for (let i = 0; i < tc.length; i++) if (Number.isFinite(tc[i])) t[k++] = tc[i];
+  let res: SamplingStep = { stepHours: null, irregular: false };
+  if (k >= 2) {
+    const ts = t.subarray(0, k).sort();
+    const d = new Float64Array(k - 1);
+    let m = 0;
+    for (let i = 1; i < k; i++) if (ts[i] > ts[i - 1]) d[m++] = ts[i] - ts[i - 1];
+    if (m > 0) {
+      const dd = d.subarray(0, m);
+      const med = Float64Array.from(dd).sort()[Math.floor(m / 2)];
+      let off = 0;
+      for (let i = 0; i < m; i++) if (Math.abs(dd[i] - med) > 0.1 * med) off++;
+      res = { stepHours: med / 3_600_000, irregular: off > 0.05 * m };
+    }
   }
+  samplingCache.set(tc, res);
+  return res;
+}
 
-  const tp = timePart.split(':').map(Number);
-  const hour = (!isNaN(tp[0]) && tp[0] >= 0 && tp[0] <= 23) ? Math.floor(tp[0]) : 0;
-
-  const dt = new Date(Date.UTC(y, m - 1, d));
-  if (isNaN(dt.getTime())) return null;
-  const dow = dt.getUTCDay(); // 0 = Sun, 6 = Sat
-  const dateStr = `${String(y).padStart(4, '0')}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-  return { dateStr, hour, dow };
+/** Resolves Δt (hours per record) for duration curves and the statistics table. */
+export function resolveDtHours(
+  rows: Rows, tsIdx: number, mode: 'auto' | 'manual' | undefined, manualDt: number
+): { dt: number; source: 'timestamps' | 'manual' | 'default'; irregular: boolean } {
+  const fallback = manualDt > 0 ? manualDt : 1.0;
+  if (mode === 'manual') return { dt: fallback, source: 'manual', irregular: false };
+  const s = inferSamplingStep(rows, tsIdx);
+  if (s.stepHours && s.stepHours > 0) return { dt: s.stepHours, source: 'timestamps', irregular: s.irregular };
+  return { dt: fallback, source: manualDt > 0 ? 'manual' : 'default', irregular: false };
 }
 
 // ============================================================================
@@ -185,7 +245,7 @@ function parseDateAndHour(rawTs: string): { dateStr: string; hour: number; dow: 
 // ============================================================================
 export function buildCarpetPlotFigure(
   columns: string[],
-  rows: string[][],
+  rows: Rows,
   tsCol: string,
   cfg: CarpetPlotState,
   fontFamily: string,
@@ -199,30 +259,38 @@ export function buildCarpetPlotFigure(
   const dayList: string[] = [];
   const daySet = new Set<string>();
   // Map key `${dateStr}_${hour}` -> number[]
-  const binMap = new Map<string, number[]>();
+  // Bin key = hours since the epoch (day·24 + hour); running sum / min / max per bin.
+  const binMap = new Map<number, { sum: number; n: number; min: number; max: number }>();
+  const dayNumOf = new Map<string, number>();
 
   if (valIdx !== -1) {
-    for (const r of rows) {
-      const parsed = parseDateAndHour(r[tsIdx] || '');
-      if (!parsed) continue;
-      if (cfg.dayFilter === 'weekdays' && (parsed.dow === 0 || parsed.dow === 6)) continue;
-      if (cfg.dayFilter === 'weekends' && (parsed.dow !== 0 && parsed.dow !== 6)) continue;
+    const tc = timeColumn(rows, tsIdx);
+    const val = numGetter(rows, valIdx);
+    for (let i = 0; i < tc.length; i++) {
+      const ms = tc[i];
+      if (!Number.isFinite(ms)) continue;
+      const dow = dowOf(ms);
+      if (cfg.dayFilter === 'weekdays' && (dow === 0 || dow === 6)) continue;
+      if (cfg.dayFilter === 'weekends' && (dow !== 0 && dow !== 6)) continue;
 
-      const rawVal = (r[valIdx] || '').trim().replace(',', '.');
-      const num = parseFloat(rawVal);
+      const num = val(i);
       if (!Number.isFinite(num)) continue;
-
-      if (!daySet.has(parsed.dateStr)) {
-        daySet.add(parsed.dateStr);
-        dayList.push(parsed.dateStr);
+      const key = Math.floor(ms / 3_600_000);
+      let b = binMap.get(key);
+      if (!b) {
+        const dateStr = dayKey(ms);
+        if (!daySet.has(dateStr)) {
+          daySet.add(dateStr);
+          dayList.push(dateStr);
+          dayNumOf.set(dateStr, Math.floor(ms / 86_400_000));
+        }
+        b = { sum: 0, n: 0, min: Infinity, max: -Infinity };
+        binMap.set(key, b);
       }
-      const key = `${parsed.dateStr}_${parsed.hour}`;
-      let arr = binMap.get(key);
-      if (!arr) {
-        arr = [];
-        binMap.set(key, arr);
-      }
-      arr.push(num);
+      b.sum += num;
+      b.n++;
+      if (num < b.min) b.min = num;
+      if (num > b.max) b.max = num;
     }
   }
 
@@ -235,16 +303,9 @@ export function buildCarpetPlotFigure(
 
   for (let h = 0; h < 24; h++) {
     for (let dIdx = 0; dIdx < dayList.length; dIdx++) {
-      const key = `${dayList[dIdx]}_${h}`;
-      const vals = binMap.get(key);
-      if (vals && vals.length > 0) {
-        if (cfg.aggMethod === 'max') {
-          zMatrix[h][dIdx] = Math.max(...vals);
-        } else if (cfg.aggMethod === 'min') {
-          zMatrix[h][dIdx] = Math.min(...vals);
-        } else {
-          zMatrix[h][dIdx] = vals.reduce((a, b) => a + b, 0) / vals.length;
-        }
+      const b = binMap.get(dayNumOf.get(dayList[dIdx])! * 24 + h);
+      if (b && b.n > 0) {
+        zMatrix[h][dIdx] = cfg.aggMethod === 'max' ? b.max : cfg.aggMethod === 'min' ? b.min : b.sum / b.n;
       }
     }
   }
@@ -366,7 +427,7 @@ export const ADAPTIVE_TRM_RANGE = {
 
 export function buildThermalComfortFigure(
   columns: string[],
-  rows: string[][],
+  rows: Rows,
   tsCol: string,
   cfg: ThermalComfortState,
   fontFamily: string,
@@ -449,9 +510,12 @@ export function buildThermalComfortFigure(
     const ptsOutY: number[] = [];
 
     if (inIdx !== -1 && rhIdx !== -1) {
-      for (const r of rows) {
-        const tVal = parseFloat((r[inIdx] || '').replace(',', '.'));
-        const rhVal = parseFloat((r[rhIdx] || '').replace(',', '.'));
+      const tGet = numGetter(rows, inIdx);
+      const rhGet = numGetter(rows, rhIdx);
+      const nR = nRowsOf(rows);
+      for (let i = 0; i < nR; i++) {
+        const tVal = tGet(i);
+        const rhVal = rhGet(i);
         if (!Number.isFinite(tVal) || !Number.isFinite(rhVal)) continue;
 
         kpi.totalHours++;
@@ -664,21 +728,25 @@ export function buildThermalComfortFigure(
   if (inIdx !== -1 && outIdx !== -1) {
     const alpha = Math.max(0.1, Math.min(0.95, cfg.alpha || 0.8));
     const tsIdx = columns.indexOf(tsCol);
-    const num = (v: string | undefined) => parseFloat((v || '').replace(',', '.'));
+    const nR = nRowsOf(rows);
+    const tIn = numGetter(rows, inIdx);
+    const tOut = numGetter(rows, outIdx);
+    const tc = timeColumn(rows, tsIdx);
 
     // T_rm must be computed on DAILY mean outdoor temperatures, never sample by sample.
     let trmByDay: Map<string, number> | null = null;
     if (cfg.computeRunningMean) {
       const acc = new Map<string, { sum: number; n: number }>();
       if (tsIdx !== -1) {
-        for (const r of rows) {
-          const parsed = parseDateAndHour(r[tsIdx] || '');
-          const tout = num(r[outIdx]);
-          if (!parsed || !Number.isFinite(tout)) continue;
-          const a = acc.get(parsed.dateStr) ?? { sum: 0, n: 0 };
+        for (let i = 0; i < nR; i++) {
+          const ms = tc[i];
+          const tout = tOut(i);
+          if (!Number.isFinite(ms) || !Number.isFinite(tout)) continue;
+          const day = dayKey(ms);
+          const a = acc.get(day) ?? { sum: 0, n: 0 };
           a.sum += tout;
           a.n++;
-          acc.set(parsed.dateStr, a);
+          acc.set(day, a);
         }
       }
       if (acc.size === 0) {
@@ -690,16 +758,15 @@ export function buildThermalComfortFigure(
       }
     }
 
-    for (const r of rows) {
+    for (let i = 0; i < nR; i++) {
       if (kpi.trmSource === 'no_timestamps') break;
-      const top = num(r[inIdx]);
-      const tout = num(r[outIdx]);
+      const top = tIn(i);
+      const tout = tOut(i);
       if (!Number.isFinite(top) || !Number.isFinite(tout)) continue;
 
       let trm: number;
       if (trmByDay) {
-        const parsed = parseDateAndHour(r[tsIdx] || '');
-        const dayTrm = parsed ? trmByDay.get(parsed.dateStr) : undefined;
+        const dayTrm = Number.isFinite(tc[i]) ? trmByDay.get(dayKey(tc[i])) : undefined;
         if (dayTrm === undefined) continue;
         trm = dayTrm;
       } else {
@@ -801,8 +868,8 @@ export function buildThermalComfortFigure(
 
   // Keep the model domain visible, extend only if out-of-range samples exist
   const xRange = [
-    Math.min(trmMin, ...naX.map(v => Math.floor(v - 1))),
-    Math.max(trmMax, ...naX.map(v => Math.ceil(v + 1)))
+    Math.min(trmMin, Math.floor(arrMin(naX) - 1)),
+    Math.max(trmMax, Math.ceil(arrMax(naX) + 1))
   ];
 
   const layout: any = {
@@ -856,25 +923,32 @@ export function buildThermalComfortFigure(
 // ============================================================================
 export function buildDurationCurveFigure(
   columns: string[],
-  rows: string[][],
+  rows: Rows,
   cfg: DurationCurveState,
   fontFamily: string,
   fontSize: number,
   widthPx: number,
-  heightPx: number
+  heightPx: number,
+  tsCol?: string
 ): { traces: any[]; layout: any; kpi: DurationKpiSummary } {
   const colIdx = columns.indexOf(cfg.variableCol);
   const cmpIdx = cfg.compareCol ? columns.indexOf(cfg.compareCol) : -1;
-  const dt = cfg.dtHours > 0 ? cfg.dtHours : 1.0;
+  // Δt from the timestamps unless the user fixed it (without timestamps: the manual value).
+  const dtInfo = resolveDtHours(rows, tsCol ? columns.indexOf(tsCol) : -1, tsCol ? (cfg.dtMode ?? 'auto') : 'manual', cfg.dtHours);
+  const dt = dtInfo.dt;
 
   const vals: number[] = [];
   if (colIdx !== -1) {
-    for (const r of rows) {
-      const v = parseFloat((r[colIdx] || '').replace(',', '.'));
+    const get = numGetter(rows, colIdx);
+    const nR = nRowsOf(rows);
+    for (let i = 0; i < nR; i++) {
+      const v = get(i);
       if (Number.isFinite(v)) vals.push(v);
     }
   }
-  vals.sort((a, b) => b - a); // Descending order: y_(1) >= y_(2) >= ... >= y_(N)
+  // Descending order y_(1) >= ... >= y_(N); a typed-array sort is ~10x faster than a comparator.
+  const sortedAscArr = Float64Array.from(vals).sort();
+  for (let i = 0, n0 = sortedAscArr.length; i < n0; i++) vals[i] = sortedAscArr[n0 - 1 - i];
 
   const n = vals.length;
   const totalHours = n * dt;
@@ -896,7 +970,7 @@ export function buildDurationCurveFigure(
     }
   }
 
-  const sortedAsc = [...vals].sort((a, b) => a - b);
+  const sortedAsc = sortedAscArr;
   const peakVal = n > 0 ? vals[0] : 0;
   const p95Val = n > 0 ? sortedAsc[Math.min(n - 1, Math.floor((n - 1) * 0.95))] : 0;
   const medianVal = n > 0 ? sortedAsc[Math.floor((n - 1) * 0.5)] : 0;
@@ -912,7 +986,10 @@ export function buildDurationCurveFigure(
     peakVal,
     p95Val,
     medianVal,
-    meanVal
+    meanVal,
+    dtHours: dt,
+    dtSource: dtInfo.source,
+    irregularSampling: dtInfo.irregular
   };
 
   const traces: any[] = [];
@@ -920,8 +997,10 @@ export function buildDurationCurveFigure(
 
   // Shaded Exceedance Area above Primary Threshold
   if (cfg.shadeExceedance && cfg.threshold1 !== null && Number.isFinite(cfg.threshold1) && exc1Count > 0) {
-    const excX = xAxisVals.slice(0, exc1Count);
-    const excY = vals.slice(0, exc1Count);
+    // The curve is monotone: an even subset of points draws it exactly at any print size.
+    const excIdx = strideIndices(exc1Count, 4000);
+    const excX = excIdx.map(i => xAxisVals[i]);
+    const excY = excIdx.map(i => vals[i]);
     const baseLine = excX.map(() => cfg.threshold1!);
 
     traces.push({
@@ -937,11 +1016,12 @@ export function buildDurationCurveFigure(
   }
 
   // Primary Duration Curve
+  const drawIdx = strideIndices(n, 4000);
   traces.push({
     type: 'scatter',
     mode: 'lines',
-    x: xAxisVals,
-    y: vals,
+    x: drawIdx.map(i => xAxisVals[i]),
+    y: drawIdx.map(i => vals[i]),
     line: { color: '#000000', width: 2.3 },
     name: `${cfg.variableCol} (Duration Curve)`
   });
@@ -949,19 +1029,22 @@ export function buildDurationCurveFigure(
   // Optional Secondary Comparison Duration Curve
   if (cmpIdx !== -1) {
     const cmpVals: number[] = [];
-    for (const r of rows) {
-      const v = parseFloat((r[cmpIdx] || '').replace(',', '.'));
+    const get = numGetter(rows, cmpIdx);
+    const nR = nRowsOf(rows);
+    for (let i = 0; i < nR; i++) {
+      const v = get(i);
       if (Number.isFinite(v)) cmpVals.push(v);
     }
-    cmpVals.sort((a, b) => b - a);
+    const cmpAsc = Float64Array.from(cmpVals).sort();
+    for (let i = 0, n0 = cmpAsc.length; i < n0; i++) cmpVals[i] = cmpAsc[n0 - 1 - i];
     const cmpX = cmpVals.map((_, i) =>
       cfg.xMode === 'pct' ? ((i + 1) / Math.max(1, cmpVals.length)) * 100 : (i + 1) * dt
     );
     traces.push({
       type: 'scatter',
       mode: 'lines',
-      x: cmpX,
-      y: cmpVals,
+      x: strideIndices(cmpVals.length, 4000).map(i => cmpX[i]),
+      y: strideIndices(cmpVals.length, 4000).map(i => cmpVals[i]),
       line: { color: '#059669', width: 2.0, dash: 'dash' },
       name: `${cfg.compareCol} (Comparison)`
     });
@@ -1069,18 +1152,25 @@ export const ASHRAE_G14_P = 1;
  * Rows whose timestamp cannot be parsed are dropped; if none parses, 'hour' falls back to the raw samples.
  */
 export function aggregateCalibrationPairs(
-  timestamps: string[],
+  timestamps: string[] | Float64Array,
   measured: number[],
   simulated: number[],
   period: 'hour' | 'month'
 ): { measured: number[]; simulated: number[] } {
-  const acc = new Map<string, { m: number; s: number; n: number }>();
+  // Keys are numeric (hour index or year·12 + month) so that 10^6 samples aggregate quickly.
+  const acc = new Map<number, { m: number; s: number; n: number }>();
   const len = Math.min(timestamps.length, measured.length, simulated.length);
   for (let i = 0; i < len; i++) {
     if (!Number.isFinite(measured[i]) || !Number.isFinite(simulated[i])) continue;
-    const parsed = parseDateAndHour(timestamps[i]);
-    if (!parsed) continue;
-    const key = period === 'month' ? parsed.dateStr.slice(0, 7) : `${parsed.dateStr}_${String(parsed.hour).padStart(2, '0')}`;
+    const ms = typeof timestamps[i] === 'number' ? (timestamps[i] as number) : timestampMs(timestamps[i] as string);
+    if (!Number.isFinite(ms)) continue;
+    let key: number;
+    if (period === 'month') {
+      const d = new Date(ms);
+      key = d.getUTCFullYear() * 12 + d.getUTCMonth();
+    } else {
+      key = Math.floor(ms / 3_600_000);
+    }
     const a = acc.get(key) ?? { m: 0, s: 0, n: 0 };
     a.m += measured[i];
     a.s += simulated[i];
@@ -1090,7 +1180,7 @@ export function aggregateCalibrationPairs(
   if (acc.size === 0) {
     return period === 'hour' ? { measured: measured.slice(0, len), simulated: simulated.slice(0, len) } : { measured: [], simulated: [] };
   }
-  const keys = [...acc.keys()].sort();
+  const keys = [...acc.keys()].sort((a, b) => a - b);
   return {
     measured: keys.map(k => acc.get(k)!.m / acc.get(k)!.n),
     simulated: keys.map(k => acc.get(k)!.s / acc.get(k)!.n)
@@ -1173,7 +1263,7 @@ export function computeAshraeMetricsTS(measured: number[], simulated: number[]):
 
 export function buildCalibrationFigure(
   columns: string[],
-  rows: string[][],
+  rows: Rows,
   tsCol: string,
   cfg: CalibrationState,
   fontFamily: string,
@@ -1191,23 +1281,32 @@ export function buildCalibrationFigure(
   const residuals: number[] = [];
   const rawTs: string[] = [];
 
+  const tsMs: number[] = [];
   if (mIdx !== -1 && sIdx !== -1) {
-    rows.forEach((r, idx) => {
-      const mv = parseFloat((r[mIdx] || '').replace(',', '.'));
-      const sv = parseFloat((r[sIdx] || '').replace(',', '.'));
+    const mGet = numGetter(rows, mIdx);
+    const sGet = numGetter(rows, sIdx);
+    const tsText = textGetter(rows, tsIdx);
+    const tc = timeColumn(rows, tsIdx);
+    const nR = nRowsOf(rows);
+    for (let idx = 0; idx < nR; idx++) {
+      const mv = mGet(idx);
+      const sv = sGet(idx);
       if (Number.isFinite(mv) && Number.isFinite(sv)) {
-        xLabels.push(r[tsIdx] || String(idx + 1));
-        rawTs.push(r[tsIdx] || '');
+        const ts = tsText(idx);
+        xLabels.push(ts || String(idx + 1));
+        rawTs.push(ts);
+        tsMs.push(tc[idx]);
         mVals.push(mv);
         sVals.push(sv);
         residuals.push(mv - sv);
       }
-    });
+    }
   }
 
   // G14 criteria are defined on hourly resp. monthly values: aggregate before computing the indices
-  const hourlyAgg = aggregateCalibrationPairs(rawTs, mVals, sVals, 'hour');
-  const monthlyAgg = aggregateCalibrationPairs(rawTs, mVals, sVals, 'month');
+  const tsArr = Float64Array.from(tsMs);
+  const hourlyAgg = aggregateCalibrationPairs(tsArr, mVals, sVals, 'hour');
+  const monthlyAgg = aggregateCalibrationPairs(tsArr, mVals, sVals, 'month');
   const hourlyMetrics = computeAshraeMetricsTS(hourlyAgg.measured, hourlyAgg.simulated);
   const monthlyMetrics = computeAshraeMetricsTS(monthlyAgg.measured, monthlyAgg.simulated);
   const metrics: CalibrationMetrics = {
@@ -1215,13 +1314,17 @@ export function buildCalibrationFigure(
     hourlyPass: hourlyMetrics.n >= 2 && hourlyMetrics.hourlyPass,
     monthlyPass: monthlyMetrics.n >= 2 && monthlyMetrics.monthlyPass
   };
+  const criteriaApply = (cfg.quantity ?? 'energy') === 'energy';
+  metrics.criteriaApplicable = criteriaApply;
   const isPass = cfg.standard === 'monthly' ? metrics.monthlyPass : metrics.hourlyPass;
   const tickFmt = tickFmtFromDec(cfg.decimals);
   const traces: any[] = [];
   const annotations: any[] = [];
 
   if (cfg.showBoxOnChart && metrics.n >= 2) {
-    const passText = isPass ? '✓ ASHRAE G14 PASS' : '⚠ OUT OF TOLERANCE';
+    const passText = !criteriaApply
+      ? 'Calibration indices (G14 criteria not applied: not energy data)'
+      : isPass ? '✓ ASHRAE G14 PASS' : '⚠ OUT OF TOLERANCE';
     const periodText = `${metrics.periods} ${cfg.standard === 'monthly' ? 'months' : 'hours'}`;
     annotations.push({
       xref: 'paper',
@@ -1231,7 +1334,7 @@ export function buildCalibrationFigure(
       xanchor: 'right',
       yanchor: 'top',
       align: 'left',
-      text: `<b>${passText} (${cfg.standard.toUpperCase()})</b><br>` +
+      text: `<b>${passText}${criteriaApply ? ` (${cfg.standard.toUpperCase()})` : ''}</b><br>` +
             `NMBE: ${metrics.nmbePct >= 0 ? '+' : ''}${metrics.nmbePct.toFixed(2)}%<br>` +
             `CV(RMSE): ${metrics.cvRmsePct.toFixed(2)}%<br>` +
             `R²: ${metrics.rSquared.toFixed(4)} | RMSE: ${metrics.rmse.toFixed(2)}<br>` +
@@ -1247,8 +1350,8 @@ export function buildCalibrationFigure(
 
   if (cfg.viewMode === 'parity') {
     const allV = [...mVals, ...sVals];
-    const minV = allV.length > 0 ? Math.min(...allV) * 0.95 : 0;
-    const maxV = allV.length > 0 ? Math.max(...allV) * 1.05 : 100;
+    const minV = allV.length > 0 ? arrMin(allV) * 0.95 : 0;
+    const maxV = allV.length > 0 ? arrMax(allV) * 1.05 : 100;
 
     // 1:1 Identity Line and ±10% Error Cone
     traces.push({
@@ -1350,17 +1453,32 @@ export function buildCalibrationFigure(
     name: `Simulated (${cfg.simulatedCol})`
   });
 
-  traces.push({
-    type: 'bar',
-    x: xLabels,
-    y: residuals,
-    xaxis: 'x2',
-    yaxis: 'y2',
-    marker: {
-      color: residuals.map(e => (e >= 0 ? 'rgba(2, 132, 199, 0.7)' : 'rgba(225, 29, 72, 0.7)'))
-    },
-    name: 'Residual (y_i - ŷ_i)'
-  });
+  if (residuals.length > 20_000) {
+    // 10^4+ bars cannot be drawn usefully (or quickly): a line keeps the residual envelope and is
+    // reduced with min-max decimation at display time.
+    traces.push({
+      type: 'scatter',
+      mode: 'lines',
+      x: xLabels,
+      y: residuals,
+      xaxis: 'x2',
+      yaxis: 'y2',
+      line: { color: 'rgba(2, 132, 199, 0.85)', width: 0.8 },
+      name: 'Residual (y_i - ŷ_i)'
+    });
+  } else {
+    traces.push({
+      type: 'bar',
+      x: xLabels,
+      y: residuals,
+      xaxis: 'x2',
+      yaxis: 'y2',
+      marker: {
+        color: residuals.map(e => (e >= 0 ? 'rgba(2, 132, 199, 0.7)' : 'rgba(225, 29, 72, 0.7)'))
+      },
+      name: 'Residual (y_i - ŷ_i)'
+    });
+  }
 
   const layout: any = {
     width: widthPx,
@@ -1448,12 +1566,36 @@ export interface VariableStatRow {
   excPct: number;
 }
 
+/**
+ * k-th smallest value of a[lo..hi] (Hoare quickselect, median-of-three pivot); reorders `a` so
+ * that a[k] holds it, smaller values lie left of k and larger ones right.
+ */
+export function selectKth(a: Float64Array, k: number, lo: number, hi: number): number {
+  while (hi > lo) {
+    const mid = (lo + hi) >>> 1;
+    // median of three as pivot
+    let x = a[lo], y = a[mid], z = a[hi];
+    const pivot = x < y ? (y < z ? y : x < z ? z : x) : (x < z ? x : y < z ? z : y);
+    let i = lo, j = hi;
+    while (i <= j) {
+      while (a[i] < pivot) i++;
+      while (a[j] > pivot) j--;
+      if (i <= j) { x = a[i]; a[i] = a[j]; a[j] = x; i++; j--; }
+    }
+    if (k <= j) hi = j;
+    else if (k >= i) lo = i;
+    else return a[k];
+  }
+  return a[k];
+}
+
 export function computeVariableStats(
   columns: string[],
-  rows: string[][],
-  cfg: EditorialSuiteState
+  rows: Rows,
+  cfg: EditorialSuiteState,
+  tsCol?: string
 ): VariableStatRow[] {
-  const dt = cfg.dtHours > 0 ? cfg.dtHours : 1.0;
+  const dt = resolveDtHours(rows, tsCol ? columns.indexOf(tsCol) : -1, tsCol ? 'auto' : 'manual', cfg.dtHours).dt;
   const results: VariableStatRow[] = [];
 
   for (const item of cfg.variables) {
@@ -1461,28 +1603,41 @@ export function computeVariableStats(
     const cIdx = columns.indexOf(item.column);
     if (cIdx === -1) continue;
 
-    const nums: number[] = [];
-    for (const r of rows) {
-      const v = parseFloat((r[cIdx] || '').replace(',', '.'));
-      if (Number.isFinite(v)) nums.push(v);
+    const get = numGetter(rows, cIdx);
+    const nR = nRowsOf(rows);
+    const buf = new Float64Array(nR);
+    let cnt = 0;
+    for (let i = 0; i < nR; i++) {
+      const v = get(i);
+      if (Number.isFinite(v)) buf[cnt++] = v;
     }
-    if (nums.length === 0) continue;
+    if (cnt === 0) continue;
 
-    nums.sort((a, b) => a - b);
-    const n = nums.length;
-    const mean = nums.reduce((a, b) => a + b, 0) / n;
-    const variance = nums.reduce((s, v) => s + (v - mean) ** 2, 0) / Math.max(1, n - 1);
+    // Percentiles by selection (O(n)) instead of a full sort: same values, ~10x faster at 10^6.
+    const sorted = buf.subarray(0, cnt);
+    const n = sorted.length;
+    let sum = 0;
+    for (let i = 0; i < n; i++) sum += sorted[i];
+    const mean = sum / n;
+    let ss = 0;
+    for (let i = 0; i < n; i++) ss += (sorted[i] - mean) ** 2;
+    const variance = ss / Math.max(1, n - 1);
+    const nums2 = sorted;
     const std = Math.sqrt(variance);
-    const min = nums[0];
-    const max = nums[n - 1];
-    const p5 = nums[Math.min(n - 1, Math.floor((n - 1) * 0.05))];
-    const median = nums[Math.floor((n - 1) * 0.5)];
-    const p95 = nums[Math.min(n - 1, Math.floor((n - 1) * 0.95))];
-
+    const min = arrMin(nums2 as unknown as number[]);
+    const max = arrMax(nums2 as unknown as number[]);
     let excCount = 0;
     if (item.threshold !== null && Number.isFinite(item.threshold)) {
-      excCount = nums.filter(v => v > item.threshold!).length;
+      const thr = item.threshold;
+      for (let i = 0; i < n; i++) if (nums2[i] > thr) excCount++;
     }
+    const iP5 = Math.min(n - 1, Math.floor((n - 1) * 0.05));
+    const iMed = Math.floor((n - 1) * 0.5);
+    const iP95 = Math.min(n - 1, Math.floor((n - 1) * 0.95));
+    // Selections in increasing rank order keep the earlier partitions valid.
+    const p5 = selectKth(nums2, iP5, 0, n - 1);
+    const median = selectKth(nums2, iMed, iP5, n - 1);
+    const p95 = selectKth(nums2, iP95, iMed, n - 1);
 
     results.push({
       variable: item.column,
@@ -1583,14 +1738,75 @@ export function generatePublicationTableCode(
   return lines.join('\n');
 }
 
+/** Configurations of the building-physics figures that can be placed in plate slots. */
+export interface PhysicsSlotConfigs {
+  carpet: CarpetPlotState;
+  comfort: ThermalComfortState;
+  duration: DurationCurveState;
+  calibration: CalibrationState;
+}
+
+/** Slot values that embed a building-physics figure instead of a data column. */
+export const PHYSICS_SLOT_KEYS = ['physics:carpet', 'physics:comfort', 'physics:duration', 'physics:calibration'] as const;
+
+/**
+ * Moves the primary-axis content of a stand-alone figure (traces on x/y, data-referenced shapes and
+ * annotations, axis settings, colour bar) into the plate cell with axes `xRef`/`yRef`.
+ * Paper-referenced annotations (KPI boxes) and secondary subplots are not carried over.
+ */
+export function embedFigureInCell(
+  fig: { traces: any[]; layout: any },
+  xRef: string,
+  yRef: string,
+  domainX: [number, number],
+  domainY: [number, number]
+): { traces: any[]; xaxis: any; yaxis: any; shapes: any[]; annotations: any[] } {
+  const isPrimary = (t: any) => (!t.xaxis || t.xaxis === 'x') && (!t.yaxis || t.yaxis === 'y');
+  const traces = fig.traces.filter(isPrimary).map(t => {
+    const c: any = { ...t, xaxis: xRef, yaxis: yRef, showlegend: false };
+    if (c.colorbar || c.showscale) {
+      const title = c.colorbar?.title;
+      c.colorbar = {
+        ...(c.colorbar || {}),
+        title: title ? { ...(typeof title === 'string' ? { text: title } : title), side: 'right' } : undefined,
+        x: domainX[1] + 0.008, xanchor: 'left',
+        y: (domainY[0] + domainY[1]) / 2, yanchor: 'middle',
+        len: domainY[1] - domainY[0], thickness: 10
+      };
+    }
+    return c;
+  });
+  // Plotly defaults xref/yref to 'x'/'y'; 'x domain' positions relative to the axis domain.
+  const remapRef = (o: any) => {
+    const c = { ...o };
+    c.xref = !c.xref || c.xref === 'x' ? xRef : c.xref === 'x domain' ? `${xRef} domain` : c.xref;
+    c.yref = !c.yref || c.yref === 'y' ? yRef : c.yref === 'y domain' ? `${yRef} domain` : c.yref;
+    return c;
+  };
+  const onData = (o: any) =>
+    o.xref !== 'paper' && o.yref !== 'paper' &&
+    (!o.xref || o.xref === 'x' || o.xref === 'x domain') && (!o.yref || o.yref === 'y' || o.yref === 'y domain');
+  const shapes = (fig.layout.shapes || []).filter(onData).map(remapRef);
+  const annotations = (fig.layout.annotations || []).filter(onData).map(remapRef);
+  const pick = (ax: any) => {
+    const keep: any = {};
+    for (const k of ['title', 'range', 'type', 'tickformat', 'dtick', 'tick0', 'autorange', 'tickvals', 'ticktext', 'categoryorder', 'zeroline']) {
+      if (ax && ax[k] !== undefined) keep[k] = ax[k];
+    }
+    return keep;
+  };
+  return { traces, xaxis: pick(fig.layout.xaxis), yaxis: pick(fig.layout.yaxis), shapes, annotations };
+}
+
 export function buildCompositePlateFigure(
   columns: string[],
-  rows: string[][],
+  rows: Rows,
   tsCol: string,
   cfg: EditorialSuiteState,
   fontFamily: string,
   fontSize: number,
-  gridFrame: GridFrameConfig
+  gridFrame: GridFrameConfig,
+  physics?: PhysicsSlotConfigs
 ): { traces: any[]; layout: any; widthPx: number; heightPx: number } {
   const mmToPxPreview = 3.78; // 96 DPI screen preview scaling (export uses 300/600 DPI scale factor)
   const widthMm = cfg.plateWidthPreset === 'single_85mm' ? 85 : (cfg.plateWidthPreset === 'half_120mm' ? 120 : 170);
@@ -1607,10 +1823,13 @@ export function buildCompositePlateFigure(
   const heightPx = Math.round(g.hMm * mmToPxPreview * 1.35);
 
   const tsIdx = Math.max(0, columns.indexOf(tsCol));
-  const xVals = rows.map((r, i) => r[tsIdx] || String(i + 1));
+  const nPlate = nRowsOf(rows);
+  const tsTextPlate = textGetter(rows, tsIdx);
+  const xVals = Array.from({ length: nPlate }, (_, i) => tsTextPlate(i) || String(i + 1));
 
   const traces: any[] = [];
   const annotations: any[] = [];
+  const shapes: any[] = [];
   const layout: any = {
     width: widthPx,
     height: heightPx,
@@ -1631,7 +1850,7 @@ export function buildCompositePlateFigure(
     const rowIdx = Math.floor(idx / g.c);
     const colIdx = idx % g.c;
     const x0 = colIdx * (cellW + hGap);
-    const x1 = x0 + cellW;
+    let x1 = x0 + cellW;
     const y1 = 1.0 - rowIdx * (cellH + vGap);
     const y0 = y1 - cellH;
 
@@ -1641,25 +1860,50 @@ export function buildCompositePlateFigure(
     const xRef = idx === 0 ? 'x' : `x${idx + 1}`;
     const yRef = idx === 0 ? 'y' : `y${idx + 1}`;
 
-    const slotCol = cfg.plateSlots[idx] || columns[Math.min(columns.length - 1, idx + 1)] || columns[0] || '';
-    const cPos = columns.indexOf(slotCol);
-    const yVals = cPos !== -1 ? rows.map(r => {
-      const v = parseFloat((r[cPos] || '').replace(',', '.'));
-      return Number.isFinite(v) ? v : null;
-    }) : [];
+    let slotCol = cfg.plateSlots[idx] || columns[Math.min(columns.length - 1, idx + 1)] || columns[0] || '';
+    let embedded: ReturnType<typeof embedFigureInCell> | null = null;
 
-    traces.push({
-      type: 'scatter',
-      mode: 'lines',
-      x: xVals,
-      y: yVals,
-      xaxis: xRef,
-      yaxis: yRef,
-      line: { color: palette[idx % palette.length], width: 1.8 },
-      name: slotCol
-    });
+    if (slotCol.startsWith('physics:') && physics) {
+      // Building-physics figure in this cell, built with the current Tab-5 settings.
+      const kind = slotCol.slice('physics:'.length);
+      const w = 600, h = 400;
+      let fig: { traces: any[]; layout: any } | null = null;
+      if (kind === 'carpet') fig = buildCarpetPlotFigure(columns, rows, tsCol, physics.carpet, fontFamily, fontSize, w, h);
+      else if (kind === 'comfort') fig = buildThermalComfortFigure(columns, rows, tsCol, physics.comfort, fontFamily, fontSize, w, h);
+      else if (kind === 'duration') fig = buildDurationCurveFigure(columns, rows, physics.duration, fontFamily, fontSize, w, h, tsCol);
+      else if (kind === 'calibration') fig = buildCalibrationFigure(columns, rows, tsCol, { ...physics.calibration, viewMode: 'parity', showBoxOnChart: false }, fontFamily, fontSize, w, h);
+      if (fig) {
+        // Leave room inside the cell for a colour bar so it does not overlap the next panel.
+        if (fig.traces.some(t => t.showscale || t.colorbar)) x1 = x1 - 0.085 * (g.c > 1 ? 1 : 0.5);
+        embedded = embedFigureInCell(fig, xRef, yRef, [x0, x1], [y0, y1]);
+        traces.push(...embedded.traces);
+        shapes.push(...embedded.shapes);
+        annotations.push(...embedded.annotations);
+        const labels: Record<string, string> = { carpet: 'Carpet plot', comfort: 'Adaptive comfort', duration: 'Duration curve', calibration: 'Calibration (parity)' };
+        slotCol = labels[kind] || kind;
+      }
+    } else {
+      const cPos = columns.indexOf(slotCol);
+      const yGet = numGetter(rows, cPos);
+      const yVals = cPos !== -1 ? Array.from({ length: nPlate }, (_, i) => {
+        const v = yGet(i);
+        return Number.isFinite(v) ? v : null;
+      }) : [];
+
+      traces.push({
+        type: 'scatter',
+        mode: 'lines',
+        x: xVals,
+        y: yVals,
+        xaxis: xRef,
+        yaxis: yRef,
+        line: { color: palette[idx % palette.length], width: 1.8 },
+        name: slotCol
+      });
+    }
 
     layout[xKey] = {
+      ...(embedded ? embedded.xaxis : {}),
       domain: [x0, x1],
       anchor: yRef,
       showline: gridFrame.frameMode !== 'none',
@@ -1672,10 +1916,14 @@ export function buildCompositePlateFigure(
       tickfont: { family: 'JetBrains Mono, monospace', size: Math.max(8, fontSize - 2), color: '#000000' }
     };
 
+    const yTitleText = embedded && embedded.yaxis.title
+      ? (typeof embedded.yaxis.title === 'string' ? embedded.yaxis.title : embedded.yaxis.title.text)
+      : slotCol;
     layout[yKey] = {
+      ...(embedded ? embedded.yaxis : {}),
       domain: [y0, y1],
       anchor: xRef,
-      title: { text: slotCol, font: { family: fontFamily, size: Math.max(9, fontSize - 1), color: '#000000' } },
+      title: { text: yTitleText, font: { family: fontFamily, size: Math.max(9, fontSize - 1), color: '#000000' } },
       showline: gridFrame.frameMode !== 'none',
       mirror: gridFrame.frameMode === 'box' ? true : (gridFrame.frameMode === 'ticks' ? 'ticks' : false),
       linecolor: '#000000',
@@ -1701,5 +1949,6 @@ export function buildCompositePlateFigure(
   }
 
   layout.annotations = annotations;
+  layout.shapes = shapes;
   return { traces, layout, widthPx, heightPx };
 }

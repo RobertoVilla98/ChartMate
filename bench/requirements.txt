@@ -1,0 +1,15 @@
+# Benchmark generators and reference readers (tested with Python 3.12)
+numpy
+pandas
+pyarrow
+polars
+h5py
+netCDF4
+xarray
+scipy
+pyreadstat
+astropy
+odfpy
+openpyxl
+psutil
+matplotlib
