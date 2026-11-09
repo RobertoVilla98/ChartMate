@@ -77,7 +77,7 @@ Go to the [**Releases**](https://github.com/RobertoVilla98/ChartMate/releases) p
 
 | Platform | Package | Notes |
 |----------|---------|-------|
-| **Windows 10/11 x64** | `.msi` / `-setup.exe` installer, or the portable `ChartMate-v0.2-windows-x64.zip` | The portable MinGW build needs `WebView2Loader.dll` next to the `.exe` (included in the zip). |
+| **Windows 10/11 x64** | `.msi` / `-setup.exe` installer, or the portable `ChartMate-v0.2-windows-x64.zip` | From v0.3 the portable `.exe` runs on its own: the WebView2 loader is embedded (v0.2 still needs `WebView2Loader.dll` next to the `.exe`, included in its zip). |
 | **macOS 10.15+** (Apple Silicon & Intel) | Universal `.dmg` | Unsigned builds: right-click → *Open* the first time. |
 | **Linux x64** | `.AppImage`, `.deb`, `.rpm` | Requires WebKitGTK 4.1 (preinstalled on most current desktops). |
 
@@ -129,6 +129,27 @@ Installers for all three platforms are produced by the [`Release`](.github/workf
 * **[`PROJECT_STATUS.md`](PROJECT_STATUS.md)**: Active development log and milestone status.
 
 ---
+
+## 📖 How to Cite
+
+ChartMate has not been published in a journal yet. If you use it in your research, please cite the
+software repository (metadata in [`CITATION.cff`](CITATION.cff); GitHub's *Cite this repository*
+button generates APA and BibTeX from it):
+
+> Villa, R. (2026). *ChartMate: publication-ready figures and building-physics indicators from time-series data* (Version 0.3.0) [Computer software]. https://github.com/RobertoVilla98/ChartMate
+
+```bibtex
+@software{villa_chartmate_2026,
+  author  = {Villa, Roberto},
+  title   = {{ChartMate}: publication-ready figures and building-physics indicators from time-series data},
+  year    = {2026},
+  version = {0.3.0},
+  url     = {https://github.com/RobertoVilla98/ChartMate},
+  license = {MIT}
+}
+```
+
+Please state the version (or commit) you used. A DOI and the journal reference will be added here once available.
 
 ## 📄 License
 This project is released under the **MIT License** — see [LICENSE](LICENSE). Copyright (c) 2026 Roberto Villa.

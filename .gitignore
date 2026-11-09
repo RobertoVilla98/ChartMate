@@ -20,3 +20,6 @@ ChartMate_Structure.txt
 
 # Local dev-server launcher for the Claude desktop app
 .claude/
+
+# Loader now embedded in the executable (tauri-app/src-tauri/webview2/); local copy only for the old v0.2 portable exe
+/WebView2Loader.dll

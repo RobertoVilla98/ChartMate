@@ -84,3 +84,8 @@
 - [x] **Bounded drawing for physics figures**: duration curves drawn with ≤ 4000 points (monotone), residuals as a line above 20 000 samples, `reduceTracesForDisplay` (min-max decimation for lines, WebGL for > 50 000 markers) on Tab 5 and plates. Fixed another `Math.min(...array)` stack overflow in the comfort chart.
 - [x] Tests: TypeScript 23/23 (+ column vs text equivalence for every module, quickselect).
 - [ ] Maps tab still uses the lazy text view; in-browser timing at 10⁶ rows for Tab 5 not measured (browser pane hidden during the session) — measure with the e2e protocol.
+
+### Standalone Windows executable — embedded WebView2 loader (2026-11-10)
+- [x] The MinGW build no longer needs `WebView2Loader.dll` next to the `.exe`. `build.rs` links a delay-import library generated with `dlltool` (`tauri-app/src-tauri/webview2/WebView2Loader.def`), so Windows does not look for the DLL at start-up; `src/webview2_loader.rs` embeds the DLL (160 KB) and, before the first WebView2 call, writes it once to `%LOCALAPPDATA%\ChartMateuntime\<size>\` and loads it. MSVC builds (CI releases) are unchanged: they link the static loader.
+- [x] Verified: release `ChartMate.exe` copied alone into an empty folder, runtime cache deleted → window opens, WebView2 starts, loader loaded from the runtime folder; second start reuses the cached copy.
+- [x] `WebView2Loader.dll` removed from the repository (kept locally for the old v0.2 portable exe); README "How to Cite" section added (APA + BibTeX, `CITATION.cff`).
