@@ -102,3 +102,4 @@
 untime\<size>\` and loads it. MSVC builds (CI releases) are unchanged: they link the static loader.
 - [x] Verified: release `ChartMate.exe` copied alone into an empty folder, runtime cache deleted → window opens, WebView2 starts, loader loaded from the runtime folder; second start reuses the cached copy.
 - [x] `WebView2Loader.dll` removed from the repository (kept locally for the old v0.2 portable exe); README "How to Cite" section added (APA + BibTeX, `CITATION.cff`).
+- [x] **Project Handoff Documentation**: \ChartMate_ProjectHandoff.md\ created and synchronized with the v0.3.0 release state, incorporating architectural conflict resolution from early Dash/Python prototypes to native Tauri v2 + Rust.
