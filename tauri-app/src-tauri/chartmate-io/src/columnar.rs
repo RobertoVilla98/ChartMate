@@ -505,10 +505,14 @@ pub fn resample_table(t: &Table, ts_idx: usize, step_secs: i64, method: &str) ->
     out
 }
 
-/// Default row limit helper.
+/// Row limit actually applied by the readers.
+///
+/// `None` (no choice made) gives [`DEFAULT_ROW_LIMIT`]; `Some(0)` means "all rows" (no limit);
+/// any other value is used as given.
 pub fn effective_limit(max_rows: Option<usize>) -> usize {
     match max_rows {
-        Some(m) if m > 0 => m,
-        _ => DEFAULT_ROW_LIMIT,
+        None => DEFAULT_ROW_LIMIT,
+        Some(0) => usize::MAX,
+        Some(m) => m,
     }
 }
