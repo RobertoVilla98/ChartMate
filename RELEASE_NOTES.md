@@ -1,3 +1,34 @@
+# 🚀 ChartMate v0.3.1 — Maintenance & Citation Release
+
+> **Release type**: maintenance release of v0.3.0, archived on Zenodo for a citable DOI
+> **Portable binary**: `ChartMate-v0.3.1-windows-x64.exe` — runs on its own, no extra DLL needed
+
+Same features as v0.3.0 (see below). This release:
+
+- adds full citation metadata to `CITATION.cff` (author ORCID and affiliation, abstract, release date), used by GitHub's *Cite this repository* button and by Zenodo;
+- is the first release archived on **Zenodo**, which assigns the DOI;
+- moves the CI and release workflows to actions that run on Node 24 (`actions/checkout`, `actions/setup-node`, `actions/upload-artifact` v7);
+- lists the checksums of the rebuilt v0.3.0 portable assets in the v0.3.0 notes.
+
+## 📦 Release assets
+
+| Asset | Platform | Description |
+| :--- | :--- | :--- |
+| **`ChartMate-v0.3.1-windows-x64.zip`** | Windows 10/11 (x64) | Portable package: `ChartMate-v0.3.1-windows-x64.exe`, `sample_building_data.csv`, `LICENSE`, `THIRD_PARTY_NOTICES.md` |
+| **`ChartMate-v0.3.1-windows-x64.exe`** | Windows 10/11 (x64) | Portable executable, runs on its own (requires the Microsoft Edge WebView2 Runtime, preinstalled on Windows 10/11) |
+| `.msi` / `-setup.exe` | Windows 10/11 (x64) | Installers |
+| Universal `.dmg` | macOS 10.15+ | Apple Silicon and Intel (unsigned: right-click → *Open* the first time) |
+| `.AppImage` / `.deb` / `.rpm` | Linux x64 | Requires WebKitGTK 4.1 |
+
+**SHA-256 checksums (portable assets)**
+
+```
+{CHECKSUMS}
+```
+
+---
+---
+
 # 🚀 ChartMate v0.3.0 — Scientific File Formats, Columnar Engine & Standalone Executable
 
 > **Release type**: Windows x64 portable release + native installers for Windows, macOS and Linux (built by CI)

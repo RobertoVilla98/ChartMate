@@ -1,6 +1,6 @@
 # ChartMate 📊 — Scientific Visualization & Building Physics Studio
 
-[![Version](https://img.shields.io/badge/version-v0.3.0-emerald.svg)](https://github.com/RobertoVilla98/ChartMate/releases)
+[![Version](https://img.shields.io/badge/version-v0.3.1-emerald.svg)](https://github.com/RobertoVilla98/ChartMate/releases)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-blue.svg)](https://github.com/RobertoVilla98/ChartMate/releases)
 [![Language](https://img.shields.io/badge/interface-Bilingual%20[EN%20%7C%20IT]-green.svg)](#-bilingual-user-interface)
 [![Architecture](https://img.shields.io/badge/stack-Rust%20%7C%20Tauri%20v2%20%7C%20TypeScript%20%7C%20Plotly.js-orange.svg)](#-building-from-source)
@@ -77,7 +77,7 @@ Go to the [**Releases**](https://github.com/RobertoVilla98/ChartMate/releases) p
 
 | Platform | Package | Notes |
 |----------|---------|-------|
-| **Windows 10/11 x64** | `.msi` / `-setup.exe` installer, or the portable `ChartMate-v0.3-windows-x64.zip` | The portable `.exe` runs on its own (WebView2 loader embedded); it needs the Microsoft Edge WebView2 Runtime, preinstalled on Windows 10/11. |
+| **Windows 10/11 x64** | `.msi` / `-setup.exe` installer, or the portable `ChartMate-v0.3.1-windows-x64.zip` | The portable `.exe` runs on its own (WebView2 loader embedded); it needs the Microsoft Edge WebView2 Runtime, preinstalled on Windows 10/11. |
 | **macOS 10.15+** (Apple Silicon & Intel) | Universal `.dmg` | Unsigned builds: right-click → *Open* the first time. |
 | **Linux x64** | `.AppImage`, `.deb`, `.rpm` | Requires WebKitGTK 4.1 (preinstalled on most current desktops). |
 
@@ -124,7 +124,7 @@ Installers for all three platforms are produced by the [`Release`](.github/workf
 
 ## 📚 Technical Documentation & Roadmap
 
-* **[`RELEASE_NOTES.md`](RELEASE_NOTES.md)**: Release notes for v0.3.0 (and earlier releases); see also [`CHANGELOG.md`](CHANGELOG.md).
+* **[`RELEASE_NOTES.md`](RELEASE_NOTES.md)**: Release notes for v0.3.1 (and earlier releases); see also [`CHANGELOG.md`](CHANGELOG.md).
 * **[`ROADMAP_IMPLEMENTATION_PLAN.md`](ROADMAP_IMPLEMENTATION_PLAN.md)**: Architectural and mathematical specifications for all implemented Building Physics, IEQ, Resampling, Calibration, and Editorial tracks.
 * **[`PROJECT_STATUS.md`](PROJECT_STATUS.md)**: Active development log and milestone status.
 
@@ -136,14 +136,14 @@ ChartMate has not been published in a journal yet. If you use it in your researc
 software repository (metadata in [`CITATION.cff`](CITATION.cff); GitHub's *Cite this repository*
 button generates APA and BibTeX from it):
 
-> Villa, R. (2026). *ChartMate: publication-ready figures and building-physics indicators from time-series data* (Version 0.3.0) [Computer software]. https://github.com/RobertoVilla98/ChartMate
+> Villa, R. (2026). *ChartMate: publication-ready figures and building-physics indicators from time-series data* (Version 0.3.1) [Computer software]. https://github.com/RobertoVilla98/ChartMate
 
 ```bibtex
 @software{villa_chartmate_2026,
   author  = {Villa, Roberto},
   title   = {{ChartMate}: publication-ready figures and building-physics indicators from time-series data},
   year    = {2026},
-  version = {0.3.0},
+  version = {0.3.1},
   url     = {https://github.com/RobertoVilla98/ChartMate},
   license = {MIT}
 }

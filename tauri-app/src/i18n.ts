@@ -395,7 +395,7 @@ export const I18N: Record<Lang, Record<string, string>> = {
     ed_plate_btn_png: '🖼️ Export High-DPI Plate (.PNG)',
   },
   it: {
-    // Correzioni revisione (v0.3): formati, scala, ambito G14, Δt, condizioni comfort
+    // Novità v0.3: formati, scala, ambito G14, Δt, condizioni comfort
     truncation_alert: 'Il file ha {total} righe: caricate solo le prime {shown} (limite righe). Aumentare il limite nel pannello dati o ricampionare.',
     ed_slot_group_columns: 'Colonna dati (serie temporale)',
     ed_slot_group_physics: 'Figura di fisica edile (impostazioni Tab 5)',

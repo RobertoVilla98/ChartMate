@@ -5,9 +5,27 @@ type: software
 authors:
   - family-names: Villa
     given-names: Roberto
-version: 0.3.0
+    orcid: "https://orcid.org/0009-0000-2900-0774"
+    affiliation: "Politecnico di Milano, Department of Architecture, Built Environment and Construction Engineering (DABC)"
+    address: "Via Giuseppe Ponzio 31"
+    city: Milano
+    region: MI
+    post-code: "20133"
+    country: IT
+version: 0.3.1
+date-released: 2026-11-19
 license: MIT
 repository-code: "https://github.com/RobertoVilla98/ChartMate"
+abstract: >-
+  ChartMate is a desktop application for Windows, macOS and Linux that turns
+  monitored or simulated time-series data into publication-ready figures and
+  building-physics indicators. A pure-Rust engine reads CSV/TSV, Excel, ODS,
+  Parquet, HDF5, netCDF-3/4, MATLAB, SAS, SPSS and FITS files as well as MySQL
+  queries. The application computes carpet plots, adaptive thermal comfort
+  (EN 16798-1, ASHRAE 55), duration curves with exposure doses and ASHRAE
+  Guideline 14 calibration indices, exports vector PDF/SVG and 300/600 dpi PNG
+  figures at journal column widths, and writes summary statistics as LaTeX
+  booktabs, Markdown or TSV tables.
 keywords:
   - data visualization
   - time series
