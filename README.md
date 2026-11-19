@@ -1,6 +1,7 @@
 # ChartMate 📊 — Scientific Visualization & Building Physics Studio
 
 [![Version](https://img.shields.io/badge/version-v0.3.1-emerald.svg)](https://github.com/RobertoVilla98/ChartMate/releases)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.24365419.svg)](https://doi.org/10.5281/zenodo.24365419)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-blue.svg)](https://github.com/RobertoVilla98/ChartMate/releases)
 [![Language](https://img.shields.io/badge/interface-Bilingual%20[EN%20%7C%20IT]-green.svg)](#-bilingual-user-interface)
 [![Architecture](https://img.shields.io/badge/stack-Rust%20%7C%20Tauri%20v2%20%7C%20TypeScript%20%7C%20Plotly.js-orange.svg)](#-building-from-source)
@@ -136,7 +137,7 @@ ChartMate has not been published in a journal yet. If you use it in your researc
 software repository (metadata in [`CITATION.cff`](CITATION.cff); GitHub's *Cite this repository*
 button generates APA and BibTeX from it):
 
-> Villa, R. (2026). *ChartMate: publication-ready figures and building-physics indicators from time-series data* (Version 0.3.1) [Computer software]. https://github.com/RobertoVilla98/ChartMate
+> Villa, R. (2026). *ChartMate: publication-ready figures and building-physics indicators from time-series data* (Version 0.3.1) [Computer software]. Zenodo. https://doi.org/10.5281/zenodo.24365419
 
 ```bibtex
 @software{villa_chartmate_2026,
@@ -144,12 +145,14 @@ button generates APA and BibTeX from it):
   title   = {{ChartMate}: publication-ready figures and building-physics indicators from time-series data},
   year    = {2026},
   version = {0.3.1},
+  publisher = {Zenodo},
+  doi     = {10.5281/zenodo.24365419},
   url     = {https://github.com/RobertoVilla98/ChartMate},
   license = {MIT}
 }
 ```
 
-Please state the version (or commit) you used. A DOI and the journal reference will be added here once available.
+The DOI [10.5281/zenodo.24365419](https://doi.org/10.5281/zenodo.24365419) always resolves to the latest version; each release also has its own version DOI on [Zenodo](https://doi.org/10.5281/zenodo.24365419). Please state the version you used. The journal reference will be added here once available.
 
 ## 📄 License
 This project is released under the **MIT License** — see [LICENSE](LICENSE). Copyright (c) 2026 Roberto Villa.
