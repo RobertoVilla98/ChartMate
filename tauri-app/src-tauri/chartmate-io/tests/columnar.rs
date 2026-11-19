@@ -81,3 +81,11 @@ fn resampling_on_columns() {
         _ => panic!("unexpected column kinds"),
     }
 }
+
+#[test]
+fn row_limit_convention_none_default_zero_all() {
+    use chartmate_io::columnar::effective_limit;
+    assert_eq!(effective_limit(None), chartmate_io::DEFAULT_ROW_LIMIT);
+    assert_eq!(effective_limit(Some(0)), usize::MAX, "0 means all rows");
+    assert_eq!(effective_limit(Some(1234)), 1234);
+}

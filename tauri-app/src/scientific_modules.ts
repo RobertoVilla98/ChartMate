@@ -38,7 +38,17 @@ export interface ComfortKpiSummary {
   outOfRangeHours: number;
   /** How T_rm was obtained: daily running mean, column used as-is, or not computable (no parseable timestamps). */
   trmSource: 'running_mean' | 'column' | 'no_timestamps';
+  /**
+   * Assessed samples that fall in the first RUNNING_MEAN_WARMUP_DAYS days of a computed running mean.
+   * There T_rm still depends on the seed (first day's own mean), so they are flagged, not excluded.
+   */
+  warmupHours?: number;
+  /** T–RH chart only: samples above the 12 g/kg humidity-ratio limit (always counted as out of zone). */
+  humidityLimitHours?: number;
 }
+
+/** Days after which the seed of the running mean weighs less than 0.8^7 ≈ 21 % (α = 0.8). */
+export const RUNNING_MEAN_WARMUP_DAYS = 7;
 
 export interface DurationCurveState {
   variableCol: string;
@@ -100,6 +110,13 @@ export interface CalibrationMetrics {
   criteriaApplicable?: boolean;
   /** Number of aggregated periods (hours or months) the metrics were computed on. */
   periods: number;
+  /** Days between the first and the last paired sample. */
+  spanDays?: number;
+  /**
+   * True when the paired data cover less than one year. ASHRAE Guideline 14 calibration is normally
+   * judged on a full year of data; on shorter periods the indices are reported but are illustrative.
+   */
+  shortPeriod?: boolean;
 }
 
 export interface EditorialTableVariable {
@@ -386,6 +403,13 @@ export function buildCarpetPlotFigure(
 // ============================================================================
 // TRACK 2: BIOCLIMATIC & ADAPTIVE THERMAL COMFORT (EN 16798-1 / ASHRAE 55)
 // ============================================================================
+/** Humidity ratio [g/kg dry air] from air temperature [°C] and RH [%] at 101.325 kPa (Magnus). */
+export function humidityRatioGkg(tC: number, rhPct: number): number {
+  const psat = 0.61078 * Math.exp((17.27 * tC) / (tC + 237.3)); // kPa
+  const pv = (rhPct / 100) * psat;
+  return 1000 * 0.62198 * pv / (101.325 - pv);
+}
+
 /**
  * Running mean outdoor temperature on DAILY means, per EN 16798-1:2019 (Annex B) and the
  * exponentially weighted prevailing mean of ASHRAE 55-2023:
@@ -519,23 +543,16 @@ export function buildThermalComfortFigure(
         if (!Number.isFinite(tVal) || !Number.isFinite(rhVal)) continue;
 
         kpi.totalHours++;
+        // One documented rule: a sample is in the comfort envelope when it lies in the winter OR the
+        // summer reference zone AND its humidity ratio does not exceed 12 g/kg dry air.
+        // (No hidden extended zone: categories 1–3 coincide on this chart.)
         const inWinter = tVal >= 20.0 && tVal <= 24.0 && rhVal >= 30.0 && rhVal <= 70.0;
         const inSummer = tVal >= 23.0 && tVal <= 26.0 && rhVal >= 30.0 && rhVal <= 70.0;
-        const inExtended = tVal >= 19.0 && tVal <= 27.0 && rhVal >= 25.0 && rhVal <= 75.0;
+        const overHumidityLimit = humidityRatioGkg(tVal, rhVal) > 12.0;
+        if (overHumidityLimit) kpi.humidityLimitHours = (kpi.humidityLimitHours ?? 0) + 1;
 
-        if (inSummer && inWinter) {
+        if ((inSummer || inWinter) && !overHumidityLimit) {
           kpi.cat1Hours++;
-          kpi.cat2Hours++;
-          kpi.cat3Hours++;
-          ptsInX.push(tVal);
-          ptsInY.push(rhVal);
-        } else if (inSummer || inWinter) {
-          kpi.cat1Hours++;
-          kpi.cat2Hours++;
-          kpi.cat3Hours++;
-          ptsInX.push(tVal);
-          ptsInY.push(rhVal);
-        } else if (inExtended) {
           kpi.cat2Hours++;
           kpi.cat3Hours++;
           ptsInX.push(tVal);
@@ -543,8 +560,8 @@ export function buildThermalComfortFigure(
         } else {
           ptsOutX.push(tVal);
           ptsOutY.push(rhVal);
-          if (tVal > 26.0 || rhVal > 70.0) kpi.overheatHours++;
-          if (tVal < 20.0 || rhVal < 30.0) kpi.undercoolHours++;
+          if (tVal > 26.0 || rhVal > 70.0 || overHumidityLimit) kpi.overheatHours++;
+          else if (tVal < 20.0 || rhVal < 30.0) kpi.undercoolHours++;
         }
       }
     }
@@ -585,7 +602,7 @@ export function buildThermalComfortFigure(
       plot_bgcolor: '#ffffff',
       font: { family: fontFamily, size: fontSize, color: '#000000' },
       title: {
-        text: '<b>Hygrothermal Comfort Envelope (T–RH Diagram)</b> — EN 16798 / ASHRAE 55',
+        text: '<b>T–RH Diagram</b> — reference zones (editable defaults) and 12 g/kg limit',
         font: { family: fontFamily, size: fontSize + 2, color: '#000000' },
         x: 0.02,
         xanchor: 'left'
@@ -735,6 +752,7 @@ export function buildThermalComfortFigure(
 
     // T_rm must be computed on DAILY mean outdoor temperatures, never sample by sample.
     let trmByDay: Map<string, number> | null = null;
+    let warmupEndMs: number | null = null;
     if (cfg.computeRunningMean) {
       const acc = new Map<string, { sum: number; n: number }>();
       if (tsIdx !== -1) {
@@ -755,6 +773,9 @@ export function buildThermalComfortFigure(
         const dailyMean = new Map<string, number>();
         acc.forEach((a, day) => dailyMean.set(day, a.sum / a.n));
         trmByDay = computeDailyRunningMean(dailyMean, alpha);
+        const firstDay = [...dailyMean.keys()].sort()[0];
+        warmupEndMs = Date.parse(`${firstDay}T00:00:00Z`) + RUNNING_MEAN_WARMUP_DAYS * 86_400_000;
+        kpi.warmupHours = 0;
       }
     }
 
@@ -765,10 +786,12 @@ export function buildThermalComfortFigure(
       if (!Number.isFinite(top) || !Number.isFinite(tout)) continue;
 
       let trm: number;
+      let inWarmup = false;
       if (trmByDay) {
         const dayTrm = Number.isFinite(tc[i]) ? trmByDay.get(dayKey(tc[i])) : undefined;
         if (dayTrm === undefined) continue;
         trm = dayTrm;
+        inWarmup = warmupEndMs !== null && tc[i] < warmupEndMs;
       } else {
         // Column already contains T_rm (or prevailing mean outdoor temperature)
         trm = tout;
@@ -784,6 +807,7 @@ export function buildThermalComfortFigure(
 
       const tNeutral = calcNeutral(trm);
       kpi.totalHours++;
+      if (inWarmup) kpi.warmupHours = (kpi.warmupHours ?? 0) + 1;
 
       const up1 = isEN ? tNeutral + 2.0 : tNeutral + 2.5;
       const lo1 = isEN ? tNeutral - 3.0 : tNeutral - 2.5;
@@ -1148,15 +1172,45 @@ export const ASHRAE_G14_P = 1;
 /**
  * Aggregates measured/simulated pairs to the time base required by the ASHRAE G14 criteria:
  * 'hour' → calendar hour (sub-hourly data averaged, hourly data unchanged), 'month' → calendar month.
- * Period values are arithmetic means (scale-invariant metrics, valid for temperatures and power alike).
+ * Monthly values are either the mean of the samples ('mean', for temperatures and other intensive
+ * quantities) or the SUM of the hourly means ('sum', for energy: monthly consumption, as in the
+ * Guideline 14 monthly criterion; for power in kW the sum of hourly means is the energy in kWh).
  * Rows whose timestamp cannot be parsed are dropped; if none parses, 'hour' falls back to the raw samples.
  */
 export function aggregateCalibrationPairs(
   timestamps: string[] | Float64Array,
   measured: number[],
   simulated: number[],
-  period: 'hour' | 'month'
+  period: 'hour' | 'month',
+  monthlyMode: 'mean' | 'sum' = 'mean'
 ): { measured: number[]; simulated: number[] } {
+  if (period === 'month' && monthlyMode === 'sum') {
+    // Hourly means first (so sub-hourly data count once per hour), then the sum per calendar month.
+    const hourAcc = new Map<number, { m: number; s: number; n: number }>();
+    const len0 = Math.min(timestamps.length, measured.length, simulated.length);
+    for (let i = 0; i < len0; i++) {
+      if (!Number.isFinite(measured[i]) || !Number.isFinite(simulated[i])) continue;
+      const ms = typeof timestamps[i] === 'number' ? (timestamps[i] as number) : timestampMs(timestamps[i] as string);
+      if (!Number.isFinite(ms)) continue;
+      const h = Math.floor(ms / 3_600_000);
+      const a = hourAcc.get(h) ?? { m: 0, s: 0, n: 0 };
+      a.m += measured[i];
+      a.s += simulated[i];
+      a.n++;
+      hourAcc.set(h, a);
+    }
+    const monthAcc = new Map<number, { m: number; s: number }>();
+    hourAcc.forEach((a, h) => {
+      const d = new Date(h * 3_600_000);
+      const key = d.getUTCFullYear() * 12 + d.getUTCMonth();
+      const b = monthAcc.get(key) ?? { m: 0, s: 0 };
+      b.m += a.m / a.n;
+      b.s += a.s / a.n;
+      monthAcc.set(key, b);
+    });
+    const mk = [...monthAcc.keys()].sort((a, b) => a - b);
+    return { measured: mk.map(k => monthAcc.get(k)!.m), simulated: mk.map(k => monthAcc.get(k)!.s) };
+  }
   // Keys are numeric (hour index or year·12 + month) so that 10^6 samples aggregate quickly.
   const acc = new Map<number, { m: number; s: number; n: number }>();
   const len = Math.min(timestamps.length, measured.length, simulated.length);
@@ -1305,8 +1359,10 @@ export function buildCalibrationFigure(
 
   // G14 criteria are defined on hourly resp. monthly values: aggregate before computing the indices
   const tsArr = Float64Array.from(tsMs);
+  const isEnergy = (cfg.quantity ?? 'energy') === 'energy';
   const hourlyAgg = aggregateCalibrationPairs(tsArr, mVals, sVals, 'hour');
-  const monthlyAgg = aggregateCalibrationPairs(tsArr, mVals, sVals, 'month');
+  // Energy: monthly consumption (sum); other quantities: monthly mean.
+  const monthlyAgg = aggregateCalibrationPairs(tsArr, mVals, sVals, 'month', isEnergy ? 'sum' : 'mean');
   const hourlyMetrics = computeAshraeMetricsTS(hourlyAgg.measured, hourlyAgg.simulated);
   const monthlyMetrics = computeAshraeMetricsTS(monthlyAgg.measured, monthlyAgg.simulated);
   const metrics: CalibrationMetrics = {
@@ -1314,8 +1370,21 @@ export function buildCalibrationFigure(
     hourlyPass: hourlyMetrics.n >= 2 && hourlyMetrics.hourlyPass,
     monthlyPass: monthlyMetrics.n >= 2 && monthlyMetrics.monthlyPass
   };
-  const criteriaApply = (cfg.quantity ?? 'energy') === 'energy';
+  const criteriaApply = isEnergy;
   metrics.criteriaApplicable = criteriaApply;
+  {
+    let lo = Infinity, hi = -Infinity;
+    for (let i = 0; i < tsArr.length; i++) {
+      const v = tsArr[i];
+      if (!Number.isFinite(v)) continue;
+      if (v < lo) lo = v;
+      if (v > hi) hi = v;
+    }
+    if (Number.isFinite(lo) && Number.isFinite(hi)) {
+      metrics.spanDays = (hi - lo) / 86_400_000;
+      metrics.shortPeriod = metrics.spanDays < 365;
+    }
+  }
   const isPass = cfg.standard === 'monthly' ? metrics.monthlyPass : metrics.hourlyPass;
   const tickFmt = tickFmtFromDec(cfg.decimals);
   const traces: any[] = [];
@@ -1798,6 +1867,22 @@ export function embedFigureInCell(
   return { traces, xaxis: pick(fig.layout.xaxis), yaxis: pick(fig.layout.yaxis), shapes, annotations };
 }
 
+/**
+ * Physical size of a figure plate. The width follows the journal column preset; the height follows
+ * the grid, so that every grid keeps its own aspect ratio in the preview and in every export.
+ */
+export function plateDimensionsMm(cfg: Pick<EditorialSuiteState, 'plateWidthPreset' | 'plateGrid'>): { widthMm: number; heightMm: number; rows: number; cols: number } {
+  const widthMm = cfg.plateWidthPreset === 'single_85mm' ? 85 : (cfg.plateWidthPreset === 'half_120mm' ? 120 : 170);
+  const gridMap: Record<string, { r: number; c: number; ratio: number }> = {
+    '2x1': { r: 2, c: 1, ratio: 0.95 },
+    '1x2': { r: 1, c: 2, ratio: 0.52 },
+    '2x2': { r: 2, c: 2, ratio: 0.85 },
+    '3x1': { r: 3, c: 1, ratio: 1.25 }
+  };
+  const g = gridMap[cfg.plateGrid] || gridMap['2x2'];
+  return { widthMm, heightMm: Math.round(widthMm * g.ratio), rows: g.r, cols: g.c };
+}
+
 export function buildCompositePlateFigure(
   columns: string[],
   rows: Rows,
@@ -1809,14 +1894,9 @@ export function buildCompositePlateFigure(
   physics?: PhysicsSlotConfigs
 ): { traces: any[]; layout: any; widthPx: number; heightPx: number } {
   const mmToPxPreview = 3.78; // 96 DPI screen preview scaling (export uses 300/600 DPI scale factor)
-  const widthMm = cfg.plateWidthPreset === 'single_85mm' ? 85 : (cfg.plateWidthPreset === 'half_120mm' ? 120 : 170);
-  const gridMap: Record<string, { r: number; c: number; hMm: number }> = {
-    '2x1': { r: 2, c: 1, hMm: Math.round(widthMm * 0.95) },
-    '1x2': { r: 1, c: 2, hMm: Math.round(widthMm * 0.52) },
-    '2x2': { r: 2, c: 2, hMm: Math.round(widthMm * 0.85) },
-    '3x1': { r: 3, c: 1, hMm: Math.round(widthMm * 1.25) }
-  };
-  const g = gridMap[cfg.plateGrid] || gridMap['2x2'];
+  const dims = plateDimensionsMm(cfg);
+  const widthMm = dims.widthMm;
+  const g = { r: dims.rows, c: dims.cols, hMm: dims.heightMm };
   const count = g.r * g.c;
 
   const widthPx = Math.round(widthMm * mmToPxPreview * 1.35);

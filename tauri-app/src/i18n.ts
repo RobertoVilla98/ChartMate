@@ -29,6 +29,7 @@ export const I18N: Record<Lang, Record<string, string>> = {
     cal_qty_energy: 'Energy / power / demand (G14 criteria)',
     cal_qty_other: 'Other (e.g. temperature): indices only',
     cal_badge_indices_only: 'INDICES ONLY · G14 criteria are defined for energy data',
+    cal_short_period: '⚠ {days} days of data: G14 calibration is normally judged on a full year; indices are illustrative',
     comfort_conditions_note: 'Adaptive models (EN 16798-1, ASHRAE 55) are defined on <b>operative</b> temperature for occupant-controlled, naturally conditioned spaces with near-sedentary activity (1.0–1.3 met) and free clothing adaptation. Selecting an air-temperature column assumes air ≈ operative temperature.',
     // Navbar
     nav_tab1: '1. Data Source & Parser',
@@ -37,6 +38,7 @@ export const I18N: Record<Lang, Record<string, string>> = {
     nav_tab4: '4. Maps & Geo Studio',
     btn_export_svg: 'Export Figure (SVG)',
     btn_export_png: 'Export Map (PNG)',
+    btn_export_png_dpi: 'Raster PNG at the figure size and the chosen resolution',
 
     // Sub-tabs (Sidebar Step-by-Step)
     sub_traces: '1. Traces',
@@ -331,6 +333,9 @@ export const I18N: Record<Lang, Record<string, string>> = {
     comfort_kpi_overheat: 'Overheating (> Upper):',
     comfort_kpi_undercool: 'Undercooling (< Lower):',
     comfort_kpi_out_of_range: 'Outside Model Range (excluded):',
+    comfort_kpi_warmup: 'Running-mean warm-up (first 7 days, included):',
+    comfort_kpi_warmup_tip: 'The running mean starts from the first day of data; during the first week it still depends on that starting value. Load at least one week of earlier outdoor data to avoid this.',
+    comfort_kpi_humidity_limit: 'Above 12 g/kg (out of zone):',
     comfort_kpi_no_timestamps: 'T_rm needs a parseable timestamp column',
 
     // Track 3: Duration Curves & Exceedance Analyzer
@@ -417,6 +422,7 @@ export const I18N: Record<Lang, Record<string, string>> = {
     cal_qty_energy: 'Energia / potenza / domanda (criteri G14)',
     cal_qty_other: 'Altro (es. temperatura): solo indici',
     cal_badge_indices_only: 'SOLO INDICI · i criteri G14 sono definiti per dati energetici',
+    cal_short_period: '⚠ {days} giorni di dati: la calibrazione G14 si valuta di norma su un anno intero; indici indicativi',
     comfort_conditions_note: 'I modelli adattivi (EN 16798-1, ASHRAE 55) sono definiti sulla temperatura <b>operativa</b>, per ambienti a ventilazione naturale controllati dagli occupanti, con attività quasi sedentaria (1,0–1,3 met) e libero adattamento del vestiario. Scegliere una colonna di temperatura dell’aria assume aria ≈ operativa.',
     // Navbar
     nav_tab1: '1. Sorgente Dati & Parser',
@@ -425,6 +431,7 @@ export const I18N: Record<Lang, Record<string, string>> = {
     nav_tab4: '4. Mappe & Geo Studio',
     btn_export_svg: 'Esporta Figura (SVG)',
     btn_export_png: 'Esporta Mappa (PNG)',
+    btn_export_png_dpi: 'PNG raster alla dimensione della figura e alla risoluzione scelta',
 
     // Sub-tabs (Sidebar Step-by-Step)
     sub_traces: '1. Serie',
@@ -719,6 +726,9 @@ export const I18N: Record<Lang, Record<string, string>> = {
     comfort_kpi_overheat: 'Surriscaldamento (> Lim. Sup.):',
     comfort_kpi_undercool: 'Sottoraffrescamento (< Lim. Inf.):',
     comfort_kpi_out_of_range: 'Fuori Campo del Modello (esclusi):',
+    comfort_kpi_warmup: 'Avvio media mobile (primi 7 giorni, inclusi):',
+    comfort_kpi_warmup_tip: 'La media mobile parte dal primo giorno di dati; nella prima settimana dipende ancora da quel valore iniziale. Caricare almeno una settimana di dati esterni precedenti per evitarlo.',
+    comfort_kpi_humidity_limit: 'Sopra 12 g/kg (fuori zona):',
     comfort_kpi_no_timestamps: 'T_rm richiede una colonna timestamp leggibile',
 
     // Track 3: Duration Curves & Exceedance Analyzer

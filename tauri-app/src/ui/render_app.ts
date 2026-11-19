@@ -53,7 +53,14 @@ export function renderApp() {
         ${state.currentTab !== 'maps' && state.currentTab !== 'data' ? `
         <button class="btn btn-primary" id="btn-export-pdf" style="margin-left: 6px;" title="Vector PDF, standard fonts, exact physical size">
           PDF
-        </button>` : ''}
+        </button>
+        <button class="btn btn-primary" id="btn-export-png" style="margin-left: 6px;" title="${t('btn_export_png_dpi')}">
+          PNG
+        </button>
+        <select id="sel-export-dpi" class="form-select" style="margin-left: 4px; width: auto;" title="${t('btn_export_png_dpi')}">
+          <option value="300" ${state.exportDpi === 300 ? 'selected' : ''}>300 dpi</option>
+          <option value="600" ${state.exportDpi === 600 ? 'selected' : ''}>600 dpi</option>
+        </select>` : ''}
       </div>
     </header>
 

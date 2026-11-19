@@ -42,6 +42,7 @@ export const state: AppState = {
   decimateLargeSeries: true,
   decimationInfo: "",
   rowLimit: 500_000,
+  exportDpi: 300,
   dataFingerprint: null,
   sqlConfig: {
     host: 'localhost',

@@ -219,10 +219,8 @@ fn execute_sql_query(
     use mysql::prelude::*;
     use mysql::{Conn, OptsBuilder, Value};
 
-    let limit = match max_rows {
-        Some(m) if m > 0 => m,
-        _ => 100_000,
-    };
+    // Same convention as the file readers: None = default limit, Some(0) = all rows.
+    let limit = chartmate_io::columnar::effective_limit(max_rows);
 
     let mut builder = OptsBuilder::new()
         .ip_or_hostname(Some(config.host.trim()))
