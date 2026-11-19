@@ -114,8 +114,8 @@ The comparison with pandas, polars, pyarrow, h5py, netCDF4, xarray, scipy, pyrea
 **SHA-256 checksums (portable assets)**
 
 ```
-3272b40b0cae723c1556c20d0ca88e1675af1604bbf97beeb022f75c6f7dbc1d  ChartMate-v0.3-windows-x64.exe
-cedb60b4e6b14487b18452be39faa76070fd78e7b9c11b972af68fcf45b76d96  ChartMate-v0.3-windows-x64.zip
+f4d2314fc95a509857e1b42e18cf2bde8cf5cb40b4a278492f3c5690c15ab09a  ChartMate-v0.3-windows-x64.exe
+090819dc1e9f59a18f3c563ea2cfc6eb706dac7482299406a83be7ea82857565  ChartMate-v0.3-windows-x64.zip
 ```
 
 ---
