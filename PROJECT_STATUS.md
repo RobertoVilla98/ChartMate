@@ -108,4 +108,5 @@ untime\<size>\` and loads it. MSVC builds (CI releases) are unchanged: they link
 - [x] `CITATION.cff`: author ORCID and affiliation (Politecnico di Milano, DABC), abstract, release date; validated with `cffconvert` (schema 1.2.0).
 - [x] CI and release workflows on `actions/checkout`, `actions/setup-node`, `actions/upload-artifact` v7 (Node 24); no deprecation warnings.
 - [x] v0.3.0 published on GitHub (installers for Windows, macOS, Linux + portable exe/zip rebuilt from `main`); merged branches deleted, Python/Dash backup kept as tag `legacy-python-dash`.
-- [ ] Zenodo concept DOI → `CITATION.cff` `identifiers` and README badge/citation.
+- [x] v0.3.1 published (Latest) and archived on Zenodo: concept DOI **10.5281/zenodo.24365419** (all versions), v0.3.1 DOI 10.5281/zenodo.24365420; DOI in `CITATION.cff` (`doi`, `identifiers`) and README (badge, APA/BibTeX).
+- [x] Local `CLAUDE.md` (imports `AGENTS.md`, lists the tracking files, git and release procedure); `.gitignore` extended (CLAUDE.md, handoff and personal guides, logs, OS/editor files).
