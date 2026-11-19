@@ -13,6 +13,7 @@ authors:
     post-code: "20133"
     country: IT
 version: 0.3.1
+doi: 10.5281/zenodo.24365419
 date-released: 2026-11-19
 license: MIT
 repository-code: "https://github.com/RobertoVilla98/ChartMate"
@@ -33,7 +34,7 @@ keywords:
   - building physics
   - thermal comfort
   - publication figures
-# Add the Zenodo concept DOI here after archiving the first release:
-# identifiers:
-#   - type: doi
-#     value: 10.5281/zenodo.XXXXXXX
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.24365419
+    description: "Concept DOI (all versions), Zenodo"
