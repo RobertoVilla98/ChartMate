@@ -15,11 +15,25 @@ projects.json
 # Agent & AI contextual documentation (local only, excluded from GitHub)
 AGENTS.md
 GEMINI.md
+CLAUDE.md
+CLAUDE.local.md
 ChartMate_Structure.txt
+ChartMate_ProjectHandoff.md
 .system_generated/
+
+# Personal guides and notes (local only)
+ZENODO_GUIDE.md
 
 # Local dev-server launcher for the Claude desktop app
 .claude/
 
 # Loader now embedded in the executable (tauri-app/src-tauri/webview2/); local copy only for the old v0.2 portable exe
 /WebView2Loader.dll
+
+# Logs and OS / editor files
+*.log
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
