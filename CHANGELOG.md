@@ -3,6 +3,15 @@
 All notable changes to ChartMate. Detailed notes for each release are in
 [`RELEASE_NOTES.md`](RELEASE_NOTES.md).
 
+## [0.3.1] — 2026-11-19
+
+### Changed
+- Citation metadata (`CITATION.cff`): author ORCID and affiliation, abstract and release date; the release is archived on Zenodo.
+- CI and release workflows run `actions/checkout`, `actions/setup-node` and `actions/upload-artifact` v7 (Node 24).
+
+### Fixed
+- `RELEASE_NOTES.md` lists the checksums of the rebuilt v0.3.0 portable assets.
+
 ## [0.3.0] — 2026-11-10
 
 ### Added

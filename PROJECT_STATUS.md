@@ -1,11 +1,11 @@
 # ChartMate — Project Status & Milestone Log
 
-## 🎯 Current Release Status: **v0.3.0 — Scientific File Formats, Columnar Engine & Standalone Executable**
-- **Executable Targets**: `ChartMate.exe` and `ChartMate-v0.3-windows-x64.exe` (50 MB, version 0.3.0), portable package `ChartMate-v0.3-windows-x64.zip` (16 MB: exe, sample data, LICENSE, THIRD_PARTY_NOTICES.md). Verified: zip extracted into an empty folder starts without `WebView2Loader.dll`.
+## 🎯 Current Release Status: **v0.3.1 — Maintenance & Citation Release** (features of v0.3.0, archived on Zenodo)
+- **Executable Targets**: `ChartMate.exe` and `ChartMate-v0.3.1-windows-x64.exe` (50 MB, version 0.3.1), portable package `ChartMate-v0.3.1-windows-x64.zip` (16 MB: exe, sample data, LICENSE, THIRD_PARTY_NOTICES.md). Verified: zip extracted into an empty folder starts without `WebView2Loader.dll`.
 - **Automated Test Suite**:
   - Rust I/O engine (`cargo test -p chartmate-io`): **18/18 passed** (13 formats vs CSV reference, binary IPC round trip, re-sampling statistics, row-limit convention).
   - TypeScript (`npm test`): **29/29 passed** (comfort vs pythermalcomfort, G14, duration/dose, carpet, statistics, decimation, plates, column/row equivalence, plate size, export fonts, T–RH zone, comfort warm-up, G14 monthly energy).
-- **Release documents**: `RELEASE_NOTES.md` (v0.3.0 + v0.2.0), `CHANGELOG.md`, `THIRD_PARTY_NOTICES.md`.
+- **Release documents**: `RELEASE_NOTES.md` (v0.3.1, v0.3.0, v0.2.0), `CHANGELOG.md`, `THIRD_PARTY_NOTICES.md`.
 
 ---
 
@@ -103,3 +103,9 @@ untime\<size>\` and loads it. MSVC builds (CI releases) are unchanged: they link
 - [x] Verified: release `ChartMate.exe` copied alone into an empty folder, runtime cache deleted → window opens, WebView2 starts, loader loaded from the runtime folder; second start reuses the cached copy.
 - [x] `WebView2Loader.dll` removed from the repository (kept locally for the old v0.2 portable exe); README "How to Cite" section added (APA + BibTeX, `CITATION.cff`).
 - [x] **Project Handoff Documentation**: \ChartMate_ProjectHandoff.md\ created and synchronized with the v0.3.0 release state, incorporating architectural conflict resolution from early Dash/Python prototypes to native Tauri v2 + Rust.
+
+### v0.3.1 — Citation metadata, Node 24 workflows, Zenodo (2026-11-19)
+- [x] `CITATION.cff`: author ORCID and affiliation (Politecnico di Milano, DABC), abstract, release date; validated with `cffconvert` (schema 1.2.0).
+- [x] CI and release workflows on `actions/checkout`, `actions/setup-node`, `actions/upload-artifact` v7 (Node 24); no deprecation warnings.
+- [x] v0.3.0 published on GitHub (installers for Windows, macOS, Linux + portable exe/zip rebuilt from `main`); merged branches deleted, Python/Dash backup kept as tag `legacy-python-dash`.
+- [ ] Zenodo concept DOI → `CITATION.cff` `identifiers` and README badge/citation.

@@ -1,6 +1,6 @@
 [package]
 name = "chartmate-io"
-version = "0.3.0"
+version = "0.3.1"
 description = "ChartMate I/O engine: pure-Rust readers for tabular and scientific formats and time-series re-sampling"
 authors = ["Roberto Villa"]
 license = "MIT"
