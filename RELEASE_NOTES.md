@@ -23,7 +23,8 @@ Same features as v0.3.0 (see below). This release:
 **SHA-256 checksums (portable assets)**
 
 ```
-{CHECKSUMS}
+966b01861f1ed6128b5ec1dd8aff7e444cd950e03ad0108d9dcf066240dd63e7  ChartMate-v0.3.1-windows-x64.exe
+40fad29fdc7183c8221d944a3651aebb81173a6e62df651fe36c347ec520c0f4  ChartMate-v0.3.1-windows-x64.zip
 ```
 
 ---
