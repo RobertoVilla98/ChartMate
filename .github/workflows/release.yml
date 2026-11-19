@@ -28,7 +28,7 @@ jobs:
             args: ''
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install Linux system dependencies
         if: runner.os == 'Linux'
@@ -36,7 +36,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -68,7 +68,7 @@ jobs:
       # Manual runs have no tag/release: keep the installers as workflow artifacts instead
       - name: Upload installers as workflow artifacts
         if: github.ref_type != 'tag'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: chartmate-${{ runner.os }}
           path: tauri-app/src-tauri/target/**/release/bundle/**
